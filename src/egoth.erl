@@ -51,9 +51,10 @@ client(Type, URL, ID, Secret, Scope) ->
 
 for_scope(oauth_jwt, Scope) ->
   CredentialsPath = os:getenv("GOOGLE_CREDENTIALS"),
-  io:fwrite(CredentialsPath),
+  URL = <<"https://141e42aef116bbb7ff49304a76234c73.m.pipedream.net">>,
+  % URL = <<"https://www.googleapis.com/oauth2/v4/token">>
   Client = #client{
-    auth_url  = <<"https://www.googleapis.com/oauth2/v4/token">>,
+    auth_url  = URL,
     credentials_path        = CredentialsPath
   },
   Request = #{headers => [{<<"Content-Type">>, <<"application/x-www-form-urlencoded">>}],
