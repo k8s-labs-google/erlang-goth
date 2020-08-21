@@ -51,8 +51,8 @@ client(Type, URL, ID, Secret, Scope) ->
 
 for_scope(oauth_jwt, Scope) ->
   CredentialsPath = os:getenv("GOOGLE_CREDENTIALS"),
-  URL = <<"https://141e42aef116bbb7ff49304a76234c73.m.pipedream.net">>,
-  % URL = <<"https://www.googleapis.com/oauth2/v4/token">>
+  % URL = <<"https://141e42aef116bbb7ff49304a76234c73.m.pipedream.net">>,
+  URL = <<"https://www.googleapis.com/oauth2/v4/token">>,
   Client = #client{
     auth_url  = URL,
     credentials_path        = CredentialsPath
@@ -309,33 +309,6 @@ jwt(Client, Scope) ->
   {ok, Token} = jwt:encode(<<"RS256">>, Claims, PrivateKey),
   Token.
 
-% base_request(#client{grant_type = <<"gcp_client_credentials">>} = Client) ->
-%   #{headers => [{<<"Content-Type">>, <<"application/x-www-form-urlencoded">>}],
-%     body => [{<<"grant_type">>, <<"urn:ietf:params:oauth:grant-type:jwt-bearer">>}, {<<"assertion">>, jwt(Client)}]};
-% base_request(#client{grant_type = GrantType}) ->
-%   #{headers => [], body => [{<<"grant_type">>, GrantType}]}.
-
-% add_client(Request0, Client, Opts) ->
-%   #client{id = Id, secret = Secret} = Client,
-%   case
-%     {Client#client.grant_type =:= <<"gcp_client_credentials">> orelse
-%      proplists:get_value(credentials_in_body, Opts, false)}
-%   of
-%     {false} ->
-%       #{headers := Headers0} = Request0,
-%       Auth = base64:encode(<<Id/binary, ":", Secret/binary>>),
-%       Headers = [{<<"Authorization">>, <<"Basic ", Auth/binary>>}
-%                  | Headers0],
-%       Request0#{headers => Headers};
-%     {true} ->
-%       Request0
-%   end.
-
-% add_fields(Request, #client{scope=undefined}) ->
-%   Request;
-% add_fields(Request, #client{grant_type = <<"gcp_client_credentials">>}) ->
-%   Request.
-
 -spec get_token_type(binary()) -> token_type().
 get_token_type(Type) ->
   get_str_token_type(string:to_lower(binary_to_list(Type))).
@@ -354,7 +327,7 @@ add_auth_header(Headers, #client{grant_type = <<"gcp_client_credentials">>,
   [AH | proplists:delete(<<"Authorization">>, Headers)];
 add_auth_header(Headers, #client{token_type = bearer,
                                  access_token = AccessToken}) ->
-  AH = {<<"Authorization">>, <<"bearer ", AccessToken/binary>>},
+  AH = {<<"Authorization">>, <<"Bearer ", AccessToken/binary>>},
   [AH | proplists:delete(<<"Authorization">>, Headers)];
 add_auth_header(Headers, #client{access_token = AccessToken}) ->
   AH = {<<"Authorization">>, <<"token ", AccessToken/binary>>},
