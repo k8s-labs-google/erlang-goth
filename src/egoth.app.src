@@ -1,0 +1,19 @@
+{application, egoth,
+ [
+  {description, "Erlang + Google + Auth = egoth"},
+  {vsn, git},
+  {registered, []},
+  {mod, {egoth_app, []}},
+  {applications, [
+                  kernel,
+                  stdlib,
+                  inets,
+                  restc,
+                  jwt
+                 ]},
+  {env, []},
+  {modules, []},
+  {maintainers, ["WillBeebe"]},
+  {licenses, ["MIT"]},
+  {links, [{"Github", "https://github.com/k8s-labs-google/erlang-goth"}]}
+ ]}.
