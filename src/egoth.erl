@@ -3,8 +3,9 @@
 -export([client/4]).
 -export([client/5]).
 
--export([retrieve_access_token/3]).
--export([retrieve_access_token/4]).
+-export([gcp_access_token/2]).
+-export([gcp_access_token/3]).
+-export([gcp_access_token/4]).
 
 -export([request/3]).
 -export([request/4]).
@@ -42,22 +43,30 @@ client(Type, URL, ID, Secret, Scope) ->
           , scope     = Scope
           }.
 
+gcp_access_token(oauth_jwt, CREDENTIALS_PATH) ->
+  Client = #client{
+    auth_url  = <<"https://www.googleapis.com/oauth2/v4/token">>,
+    credentials_path        = CREDENTIALS_PATH
+  },
+  Request = #{headers => [{<<"Content-Type">>, <<"application/x-www-form-urlencoded">>}],
+    body => [{<<"grant_type">>, <<"urn:ietf:params:oauth:grant-type:jwt-bearer">>}, {<<"assertion">>, jwt(Client)}]},
+  do_retrieve_access_token(Request, []).
 
--spec retrieve_access_token(Type, URL, CREDENTIALS_PATH) ->
+-spec gcp_access_token(Type, URL, CREDENTIALS_PATH) ->
   {ok, Headers::headers(), client()} | {error, Reason :: binary()} when
   Type    :: at_type(),
   URL     :: url(),
   CREDENTIALS_PATH      :: binary().
-retrieve_access_token(Type, Url, CREDENTIALS_PATH) ->
-  retrieve_access_token(Type, Url, CREDENTIALS_PATH, []).
+gcp_access_token(Type, Url, CREDENTIALS_PATH) ->
+  gcp_access_token(Type, Url, CREDENTIALS_PATH, []).
 
--spec retrieve_access_token(Type, URL, CREDENTIALS_PATH, Options) ->
+-spec gcp_access_token(Type, URL, CREDENTIALS_PATH, Options) ->
     {ok, Headers::headers(), client()} | {error, Reason :: binary()} when
     Type    :: at_type(),
     URL     :: url(),
     CREDENTIALS_PATH      :: binary(),
     Options :: options().
-  retrieve_access_token(Type, Url, CREDENTIALS_PATH, Options) ->
+  gcp_access_token(Type, Url, CREDENTIALS_PATH, Options) ->
   Client = #client{ grant_type = Type
                   , auth_url  = Url
                   , credentials_path        = CREDENTIALS_PATH
@@ -145,7 +154,7 @@ ensure_client_has_access_token(Client0, Options) ->
 
 do_retrieve_access_token(Client, Opts) ->
   #{headers := RequestHeaders,
-    body := RequestBody} = prepare_token_request(Client, Opts),
+    body := RequestBody} = Client,
   case restc:request(post, percent, Client#client.auth_url,
                      [200], RequestHeaders, RequestBody, Opts)
   of
@@ -177,10 +186,10 @@ do_retrieve_access_token(Client, Opts) ->
       {error, Reason}
   end.
 
-prepare_token_request(Client, Opts) ->
-  BaseRequest = base_request(Client),
-  Request0 = add_client(BaseRequest, Client, Opts),
-  add_fields(Request0, Client).
+% prepare_token_request(Client, Opts) ->
+  % BaseRequest = base_request(Client),
+  % Request0 = add_client(BaseRequest, Client, Opts),
+  % add_fields(Request0, Client).
 
 claims(Data) ->
   ClientEmail = maps:get(<<"client_email">>, Data),
@@ -208,32 +217,32 @@ jwt(Client) ->
   {ok, Token} = jwt:encode(<<"RS256">>, Claims, PrivateKey),
   Token.
 
-base_request(#client{grant_type = <<"gcp_client_credentials">>} = Client) ->
-  #{headers => [{<<"Content-Type">>, <<"application/x-www-form-urlencoded">>}],
-    body => [{<<"grant_type">>, <<"urn:ietf:params:oauth:grant-type:jwt-bearer">>}, {<<"assertion">>, jwt(Client)}]};
-base_request(#client{grant_type = GrantType}) ->
-  #{headers => [], body => [{<<"grant_type">>, GrantType}]}.
+% base_request(#client{grant_type = <<"gcp_client_credentials">>} = Client) ->
+%   #{headers => [{<<"Content-Type">>, <<"application/x-www-form-urlencoded">>}],
+%     body => [{<<"grant_type">>, <<"urn:ietf:params:oauth:grant-type:jwt-bearer">>}, {<<"assertion">>, jwt(Client)}]};
+% base_request(#client{grant_type = GrantType}) ->
+%   #{headers => [], body => [{<<"grant_type">>, GrantType}]}.
 
-add_client(Request0, Client, Opts) ->
-  #client{id = Id, secret = Secret} = Client,
-  case
-    {Client#client.grant_type =:= <<"gcp_client_credentials">> orelse
-     proplists:get_value(credentials_in_body, Opts, false)}
-  of
-    {false} ->
-      #{headers := Headers0} = Request0,
-      Auth = base64:encode(<<Id/binary, ":", Secret/binary>>),
-      Headers = [{<<"Authorization">>, <<"Basic ", Auth/binary>>}
-                 | Headers0],
-      Request0#{headers => Headers};
-    {true} ->
-      Request0
-  end.
+% add_client(Request0, Client, Opts) ->
+%   #client{id = Id, secret = Secret} = Client,
+%   case
+%     {Client#client.grant_type =:= <<"gcp_client_credentials">> orelse
+%      proplists:get_value(credentials_in_body, Opts, false)}
+%   of
+%     {false} ->
+%       #{headers := Headers0} = Request0,
+%       Auth = base64:encode(<<Id/binary, ":", Secret/binary>>),
+%       Headers = [{<<"Authorization">>, <<"Basic ", Auth/binary>>}
+%                  | Headers0],
+%       Request0#{headers => Headers};
+%     {true} ->
+%       Request0
+%   end.
 
-add_fields(Request, #client{scope=undefined}) ->
-  Request;
-add_fields(Request, #client{grant_type = <<"gcp_client_credentials">>}) ->
-  Request.
+% add_fields(Request, #client{scope=undefined}) ->
+%   Request;
+% add_fields(Request, #client{grant_type = <<"gcp_client_credentials">>}) ->
+%   Request.
 
 -spec get_token_type(binary()) -> token_type().
 get_token_type(Type) ->
