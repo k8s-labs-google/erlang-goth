@@ -50,7 +50,40 @@ gcp_access_token(oauth_jwt, CREDENTIALS_PATH) ->
   },
   Request = #{headers => [{<<"Content-Type">>, <<"application/x-www-form-urlencoded">>}],
     body => [{<<"grant_type">>, <<"urn:ietf:params:oauth:grant-type:jwt-bearer">>}, {<<"assertion">>, jwt(Client)}]},
-  do_retrieve_access_token(Request, []).
+  #{headers := RequestHeaders,
+    body := RequestBody} = Request,
+
+  case restc:request(post, percent, Client#client.auth_url,
+                    [200], RequestHeaders, RequestBody, [])
+  of
+    {ok, _, Headers, Body} ->
+      % move to handle_response
+      AccessToken = proplists:get_value(<<"access_token">>, Body),
+      TokenType = proplists:get_value(<<"token_type">>, Body, ""),
+      ExpireTime =
+        case proplists:get_value(<<"expires_in">>, Body) of
+          undefined -> undefined;
+          ExpiresIn -> erlang:system_time(second) + ExpiresIn
+        end,
+      RefreshToken = proplists:get_value(<<"refresh_token">>,
+                                        Body,
+                                        Client#client.refresh_token),
+      Result = #client{ grant_type    = Client#client.grant_type
+                      , auth_url      = Client#client.auth_url
+                      , access_token  = AccessToken
+                      , refresh_token = RefreshToken
+                      , token_type    = get_token_type(TokenType)
+                      , id            = Client#client.id
+                      , secret        = Client#client.secret
+                      , scope         = Client#client.scope
+                      , expire_time   = ExpireTime
+                      },
+      {ok, Headers, Result};
+    {error, _, _, Reason} ->
+      {error, Reason};
+    {error, Reason} ->
+      {error, Reason}
+  end.
 
 -spec gcp_access_token(Type, URL, CREDENTIALS_PATH) ->
   {ok, Headers::headers(), client()} | {error, Reason :: binary()} when
@@ -153,8 +186,13 @@ ensure_client_has_access_token(Client0, Options) ->
   end.
 
 do_retrieve_access_token(Client, Opts) ->
+  Request = #{
+    headers => [{<<"Content-Type">>, <<"application/x-www-form-urlencoded">>}],
+    body => [{<<"grant_type">>, <<"urn:ietf:params:oauth:grant-type:jwt-bearer">>}, {<<"assertion">>, jwt(Client)}]
+  },
   #{headers := RequestHeaders,
-    body := RequestBody} = Client,
+    body := RequestBody} = Request,
+  % move to handle_request
   case restc:request(post, percent, Client#client.auth_url,
                      [200], RequestHeaders, RequestBody, Opts)
   of
