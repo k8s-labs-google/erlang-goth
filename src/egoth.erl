@@ -183,7 +183,7 @@ do_retrieve_access_token(Client, Opts) ->
   end.
 
 claims(Scope) ->
-  ClientEmail = config:get(<<"client_email">>),
+  {ok, ClientEmail, _} = config:get(<<"client_email">>),
   {MegaSecs, Secs, _} = erlang:timestamp(),
   UnixTime = MegaSecs * 1000000 + Secs,
   #{
@@ -196,7 +196,7 @@ claims(Scope) ->
 
 jwt(Scope) ->
   Claims = claims(Scope),
-  PrivateKey = config:get(<<"private_key">>),
+  {ok, PrivateKey, _} = config:get(<<"private_key">>),
   {ok, Token} = jwt:encode(<<"RS256">>, Claims, PrivateKey),
   Token.
 
