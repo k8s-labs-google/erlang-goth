@@ -183,11 +183,11 @@ do_retrieve_access_token(Client, Opts) ->
   end.
 
 claims(Scope) ->
-  ClientEmail = config:get(<<"client_email">>),
+  {ok, Value} = config:get(<<"client_email">>),
   {MegaSecs, Secs, _} = erlang:timestamp(),
   UnixTime = MegaSecs * 1000000 + Secs,
   #{
-    <<"iss">> => ClientEmail,
+    <<"iss">> => Value,
     <<"scope">> => Scope,
     <<"aud">> => <<"https://www.googleapis.com/oauth2/v4/token">>,
     <<"iat">> => UnixTime,
@@ -196,8 +196,8 @@ claims(Scope) ->
 
 jwt(Scope) ->
   Claims = claims(Scope),
-  PrivateKey = config:get(<<"private_key">>),
-  {ok, Token} = jwt:encode(<<"RS256">>, Claims, PrivateKey),
+  {ok, Value} = config:get(<<"private_key">>),
+  {ok, Token} = jwt:encode(<<"RS256">>, Claims, Value),
   Token.
 
 -spec get_token_type(binary()) -> token_type().
