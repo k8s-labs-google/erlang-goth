@@ -42,8 +42,7 @@ init(_Args) ->
 
 handle_call({get, Key}, _From, State) ->
   GcpCredentials = maps:get("gcp_credentials", State),
-  Result = maps:get(Key, GcpCredentials),
-  {ok, Result}.
+  maps:get(Key, GcpCredentials).
 
 handle_cast(_, State) -> {noreply, State}.
 
