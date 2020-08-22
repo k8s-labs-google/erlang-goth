@@ -27,5 +27,11 @@ init([]) ->
                   shutdown => 5000,
                   type => worker,
                   modules => [oauth2c_token_cache]
-                 }],
+                 },#{id => config,
+                 start => {config, start_link, []},
+                 restart => permanent,
+                 shutdown => 5000,
+                 type => worker,
+                 modules => [config]
+                }],
   {ok, {Strategy, ChildSpecs}}.
