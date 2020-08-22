@@ -25,10 +25,10 @@ start_link() ->
 
 %%%_ * gen_server callbacks --------------------------------------------
 
-% -spec get(Key) -> Value | Error when
-%     Key :: string(),
-%     Value :: {ok,  binary()},
-%     Error :: {error, atom()}.
+-spec get(Key) -> Value | Error when
+    Key :: string(),
+    Value :: {ok,  binary()},
+    Error :: {error, atom()}.
 get(Key) ->
   gen_server:call(?SERVER, {get,
                             Key}).
@@ -43,7 +43,7 @@ init(_Args) ->
 handle_call({get, Key}, _From, State) ->
   GcpCredentials = maps:get("gcp_credentials", State),
   Value = maps:get(Key, GcpCredentials),
-  {ok, Value}.
+  {ok, Value, State}.
 
 handle_cast(_, State) -> {noreply, State}.
 
