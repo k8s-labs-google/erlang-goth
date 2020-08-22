@@ -1,6 +1,4 @@
--record(client, {grant_type    = undefined :: binary()     | undefined,
-                 auth_url      = undefined :: binary()     | undefined,
-                 access_token  = undefined :: binary()     | undefined,
+-record(client, {access_token  = undefined :: binary()     | undefined,
                  token_type    = undefined :: token_type() | undefined,
                  refresh_token = undefined :: binary()     | undefined,
                  id            = undefined :: binary()     | undefined,

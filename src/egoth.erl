@@ -1,14 +1,8 @@
 -module(egoth).
 
 % new API
+-export([for_scope/1]).
 -export([for_scope/2]).
-
--export([client/4]).
--export([client/5]).
-
--export([gcp_access_token/2]).
--export([gcp_access_token/3]).
--export([gcp_access_token/4]).
 
 -export([request/3]).
 -export([request/4]).
@@ -19,50 +13,31 @@
 
 -define(DEFAULT_ENCODING, json).
 -define(TOKEN_CACHE_SERVER, oauth2c_token_cache).
+-define(AUTH_URL, <<"https://www.googleapis.com/oauth2/v4/token">>).
 
 -include("egoth.hrl").
 
 %%% API ========================================================================
 
--spec client(Type, URL, ID, Secret) -> client() when
-    Type   :: at_type(),
-    URL    :: url(),
-    ID     :: binary(),
-    Secret :: binary().
-client(Type, URL, ID, Secret) ->
-  client(Type, URL, ID, Secret, undefined).
-
--spec client(Type, URL, ID, Secret, Scope) -> client() when
-    Type   :: at_type(),
-    URL    :: url(),
-    ID     :: binary(),
-    Secret :: binary(),
-    Scope  :: binary() | undefined.
-client(Type, URL, ID, Secret, Scope) ->
-   #client{ grant_type = Type
-          , auth_url  = URL
-          , id        = ID
-          , secret    = Secret
-          , scope     = Scope
-          }.
-
-% for_scope(Scope) ->
-%   % handle metadata server
+for_scope(Scope) ->
+  for_scope(oauth_jwt, Scope).
 
 for_scope(oauth_jwt, Scope) ->
-  CredentialsPath = os:getenv("GOOGLE_CREDENTIALS"),
-  % URL = <<"https://141e42aef116bbb7ff49304a76234c73.m.pipedream.net">>,
-  URL = <<"https://www.googleapis.com/oauth2/v4/token">>,
-  Client = #client{
-    auth_url  = URL,
-    credentials_path        = CredentialsPath
-  },
-  Request = #{headers => [{<<"Content-Type">>, <<"application/x-www-form-urlencoded">>}],
-    body => [{<<"grant_type">>, <<"urn:ietf:params:oauth:grant-type:jwt-bearer">>}, {<<"assertion">>, jwt(Client, Scope)}]},
-  #{headers := RequestHeaders,
-    body := RequestBody} = Request,
+  Client = #client{},
+  RequestHeaders = [
+    {
+      <<"Content-Type">>, <<"application/x-www-form-urlencoded">>
+    }
+  ],
+  RequestBody = [
+    {
+      <<"grant_type">>, <<"urn:ietf:params:oauth:grant-type:jwt-bearer">>
+    }, {
+      <<"assertion">>, jwt(Scope)
+    }
+  ],
 
-  case restc:request(post, percent, Client#client.auth_url,
+  case restc:request(post, percent, ?AUTH_URL,
                     [200], RequestHeaders, RequestBody, [])
   of
     {ok, _, Headers, Body} ->
@@ -77,9 +52,7 @@ for_scope(oauth_jwt, Scope) ->
       RefreshToken = proplists:get_value(<<"refresh_token">>,
                                         Body,
                                         Client#client.refresh_token),
-      Result = #client{ grant_type    = Client#client.grant_type
-                      , auth_url      = Client#client.auth_url
-                      , access_token  = AccessToken
+      Result = #client{access_token  = AccessToken
                       , refresh_token = RefreshToken
                       , token_type    = get_token_type(TokenType)
                       , id            = Client#client.id
@@ -93,69 +66,6 @@ for_scope(oauth_jwt, Scope) ->
     {error, Reason} ->
       {error, Reason}
   end.
-
-gcp_access_token(oauth_jwt, CREDENTIALS_PATH) ->
-  Client = #client{
-    auth_url  = <<"https://www.googleapis.com/oauth2/v4/token">>,
-    credentials_path        = CREDENTIALS_PATH
-  },
-  Request = #{headers => [{<<"Content-Type">>, <<"application/x-www-form-urlencoded">>}],
-    body => [{<<"grant_type">>, <<"urn:ietf:params:oauth:grant-type:jwt-bearer">>}, {<<"assertion">>, jwt(Client)}]},
-  #{headers := RequestHeaders,
-    body := RequestBody} = Request,
-
-  case restc:request(post, percent, Client#client.auth_url,
-                    [200], RequestHeaders, RequestBody, [])
-  of
-    {ok, _, Headers, Body} ->
-      % move to handle_response
-      AccessToken = proplists:get_value(<<"access_token">>, Body),
-      TokenType = proplists:get_value(<<"token_type">>, Body, ""),
-      ExpireTime =
-        case proplists:get_value(<<"expires_in">>, Body) of
-          undefined -> undefined;
-          ExpiresIn -> erlang:system_time(second) + ExpiresIn
-        end,
-      RefreshToken = proplists:get_value(<<"refresh_token">>,
-                                        Body,
-                                        Client#client.refresh_token),
-      Result = #client{ grant_type    = Client#client.grant_type
-                      , auth_url      = Client#client.auth_url
-                      , access_token  = AccessToken
-                      , refresh_token = RefreshToken
-                      , token_type    = get_token_type(TokenType)
-                      , id            = Client#client.id
-                      , secret        = Client#client.secret
-                      , scope         = Client#client.scope
-                      , expire_time   = ExpireTime
-                      },
-      {ok, Headers, Result};
-    {error, _, _, Reason} ->
-      {error, Reason};
-    {error, Reason} ->
-      {error, Reason}
-  end.
-
--spec gcp_access_token(Type, URL, CREDENTIALS_PATH) ->
-  {ok, Headers::headers(), client()} | {error, Reason :: binary()} when
-  Type    :: at_type(),
-  URL     :: url(),
-  CREDENTIALS_PATH      :: binary().
-gcp_access_token(Type, Url, CREDENTIALS_PATH) ->
-  gcp_access_token(Type, Url, CREDENTIALS_PATH, []).
-
--spec gcp_access_token(Type, URL, CREDENTIALS_PATH, Options) ->
-    {ok, Headers::headers(), client()} | {error, Reason :: binary()} when
-    Type    :: at_type(),
-    URL     :: url(),
-    CREDENTIALS_PATH      :: binary(),
-    Options :: options().
-  gcp_access_token(Type, Url, CREDENTIALS_PATH, Options) ->
-  Client = #client{ grant_type = Type
-                  , auth_url  = Url
-                  , credentials_path        = CREDENTIALS_PATH
-                  },
-  do_retrieve_access_token(Client, Options).
 
 -spec request(Method, Url, Client) -> Response::response() when
     Method :: method(),
@@ -244,8 +154,7 @@ do_retrieve_access_token(Client, Opts) ->
   #{headers := RequestHeaders,
     body := RequestBody} = Request,
   % move to handle_request
-  case restc:request(post, percent, Client#client.auth_url,
-                     [200], RequestHeaders, RequestBody, Opts)
+  case restc:request(post, percent, ?AUTH_URL, [200], RequestHeaders, RequestBody, Opts)
   of
     {ok, _, Headers, Body} ->
       AccessToken = proplists:get_value(<<"access_token">>, Body),
@@ -258,9 +167,7 @@ do_retrieve_access_token(Client, Opts) ->
       RefreshToken = proplists:get_value(<<"refresh_token">>,
                                          Body,
                                          Client#client.refresh_token),
-      Result = #client{ grant_type    = Client#client.grant_type
-                      , auth_url      = Client#client.auth_url
-                      , access_token  = AccessToken
+      Result = #client{ access_token  = AccessToken
                       , refresh_token = RefreshToken
                       , token_type    = get_token_type(TokenType)
                       , id            = Client#client.id
@@ -275,15 +182,8 @@ do_retrieve_access_token(Client, Opts) ->
       {error, Reason}
   end.
 
-% prepare_token_request(Client, Opts) ->
-  % BaseRequest = base_request(Client),
-  % Request0 = add_client(BaseRequest, Client, Opts),
-  % add_fields(Request0, Client).
-
-claims(Data, Scope) ->
-  ClientEmail = maps:get(<<"client_email">>, Data),
-  % TODO: pass in scopes
-  % Scope = <<"https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/trace.append">>,
+claims(Scope) ->
+  ClientEmail = config:get("client_email"),
   {MegaSecs, Secs, _} = erlang:timestamp(),
   UnixTime = MegaSecs * 1000000 + Secs,
   #{
@@ -294,18 +194,9 @@ claims(Data, Scope) ->
     <<"exp">> => UnixTime + 3600
   }.
 
-jwt(Client) ->
-  jwt(Client, "").
-
-jwt(Client, Scope) ->
-  #client{ credentials_path = CredentialsPath } = Client,
-  {ok, File} = file:read_file(CredentialsPath),
-  % TODO: stoare in state, don't read during every request
-  Data = jiffy:decode(File, [ return_maps ]),
-  PrivateKey = maps:get(<<"private_key">>, Data),
-  % using records would be nice
-  % #credentials_file{ <<"private_key">> = PrivateKey } = Data,
-  Claims = claims(Data, Scope),
+jwt(Scope) ->
+  Claims = claims(Scope),
+  PrivateKey = config:get("private_key"),
   {ok, Token} = jwt:encode(<<"RS256">>, Claims, PrivateKey),
   Token.
 
@@ -321,10 +212,6 @@ do_request(Method, Type, Url, Expect, Headers0, Body, Options, Client) ->
   Headers = add_auth_header(Headers0, Client),
   {restc:request(Method, Type, Url, Expect, Headers, Body, Options), Client}.
 
-add_auth_header(Headers, #client{grant_type = <<"gcp_client_credentials">>,
-                                 access_token = AccessToken}) ->
-  AH = {<<"Authorization">>, <<"Bearer ", AccessToken/binary>>},
-  [AH | proplists:delete(<<"Authorization">>, Headers)];
 add_auth_header(Headers, #client{token_type = bearer,
                                  access_token = AccessToken}) ->
   AH = {<<"Authorization">>, <<"Bearer ", AccessToken/binary>>},
@@ -363,12 +250,10 @@ get_access_token(#client{expire_time = ExpireTime} = Client0, Options) ->
       oauth2c_token_cache:set_and_get(Key, RevalidateFun, ExpireTime)
   end.
 
-hash_client(#client{grant_type = Type,
-                    auth_url = AuthUrl,
-                    id = ID,
+hash_client(#client{id = ID,
                     secret = Secret,
                     scope = Scope}) ->
-  erlang:phash2({Type, AuthUrl, ID, Secret, Scope}).
+  erlang:phash2({ID, Secret, Scope}).
 
 %%%_ * Tests -------------------------------------------------------
 
