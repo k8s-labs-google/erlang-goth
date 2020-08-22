@@ -27,7 +27,7 @@ start_link() ->
 
 -spec get(Key) -> Value | Error when
     Key :: string(),
-    Value :: {ok,  binary()},
+    Value :: {ok,  any()},
     Error :: {error, atom()}.
 get(Key) ->
   gen_server:call(?SERVER, {get,
