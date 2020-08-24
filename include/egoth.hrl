@@ -1,5 +1,4 @@
 -record(client, {access_token  = undefined :: binary()     | undefined,
-                 token_type    = undefined :: token_type() | undefined,
                  refresh_token = undefined :: binary()     | undefined,
                  id            = undefined :: binary()     | undefined,
                  secret        = undefined :: binary()     | undefined,
@@ -51,5 +50,4 @@
                           , Body::body()}          |
                           { error, Reason::reason()}.
 -type response()       :: {restc_response(), #client{}}.
--type token_type()     :: bearer | unsupported.
 -type client()         :: #client{}.

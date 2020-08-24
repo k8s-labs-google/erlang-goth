@@ -33,12 +33,33 @@ get(Key) ->
   gen_server:call(?SERVER, {get,
                             Key}).
 
-init(_Args) ->
-  CredentialsPath = os:getenv("GOOGLE_CREDENTIALS"),
-  {ok, File} = file:read_file(CredentialsPath),
-  Data = jiffy:decode(File, [ return_maps ]),
-  State = #{"gcp_credentials" => Data},
-  {ok, State}.
+init(State) ->
+  {ok, DynamicConfig} = config_mod_init(State),
+  {ok, Config} = load_and_init(DynamicConfig),
+  {ok, Config}.
+
+load_and_init(AppConfig) ->
+  % TODO: figure out how this looks in erlang
+  % Config = from_json(AppConfig) or from_config(AppConfig) or from_creds_file(AppConfig) or
+  %   from_gcloud_adc(AppConfig) or from_metadata(AppConfig),
+
+  ConfigTuple = {from_json(AppConfig), from_config(AppConfig), from_creds_file(AppConfig), from_gcloud_adc(AppConfig), from_metadata(AppConfig)},
+  Config = lists:filter(fun(Elem) ->
+      is_map(Elem)
+    end
+    , tuple_to_list(ConfigTuple)),
+
+  % Config = from_metadata(AppConfig),
+  Config2 = map_config(lists:last(Config)),
+  ActorEmail = maps:get(<<"actor_email">>, AppConfig, undefined),
+  ProjectId = determine_project_id(Config2, AppConfig),
+  Config3 = maps:put(Config2, <<"project_id">>, ProjectId),
+  Config4 = maps:put(Config3, <<"actor_email">>, ActorEmail),
+
+  {ok, Config4}.
+
+
+
 
 handle_call({get, Key}, _From, State) ->
   GcpCredentials = maps:get("gcp_credentials", State),
@@ -49,6 +70,109 @@ handle_cast(_, State) -> {noreply, State}.
 
 %%%_ * Private functions -----------------------------------------------
 
+determine_project_id(Config, DynamicConfig) ->
+  case maps:get(<<"project_id">>, DynamicConfig, false) or
+    os:getenv("GOOGLE_CLOUD_PROJECT") or
+    os:getenv("GCLOUD_PROJECT") or
+    os:getenv("DEVSHELL_PROJECT_ID") or
+    maps:get(<<"project_id">>, Config, false) of
+    false ->
+      try egoth:retrieve_metadata_project() of
+        ProjectId -> ProjectId
+      catch
+      % TODO: catch on specific error
+          error -> erlang:error("Failed to retrieve project data from GCE internal metadata service.
+            Either you haven't configured your GCP credentials, you aren't running on GCE, or both.
+            Please see README.md for instructions on configuring your credentials.")
+      end;
+    ProjectId -> ProjectId
+  end.
+
+
+map_config(Config) when is_map(Config) ->
+  {ok, Config};
+map_config({client_email = Account} = Config) ->
+  Config2 = #{<<"account">> => Account, <<"config">> => Config},
+  {ok, Config2}.
+
+% TODO: implement
+config_mod_init(_Config) ->
+  % case Keyword.get(config, :config_module) do
+  %     nil ->
+  %       {:ok, config}
+
+  %     mod ->
+  %       if Code.ensure_loaded?(mod) and function_exported?(mod, :init, 1) do
+  %         mod.init(config)
+  %       else
+  %         {:ok, config}
+  %       end
+  %   end
+  {ok, #{}}.
+
+% TODO: implement
+from_json(Config) ->
+  io:fwrite("from_json"),
+  case maps:get(<<"json">>, Config, false) of
+    false -> false;
+    % {:system, var} -> decode_json(System.get_env(var))
+    Json -> decode_json(Json)
+  end.
+
+% TODO: implement
+from_config(Config) ->
+  io:fwrite("from_config"),
+  maps:get(<<"config">>, Config, false).
+
+from_creds_file(_Config) ->
+  io:fwrite("from_creds_file~n"),
+  io:fwrite(os:getenv("GOOGLE_APPLICATION_CREDENTIALS")),
+  case os:getenv("GOOGLE_APPLICATION_CREDENTIALS") of
+    false -> false;
+    CredentialsPath ->
+      {ok, File} = file:read_file(CredentialsPath),
+      decode_json(File)
+  end.
+
+% TODO: implement
+% Search the well-known path for application default credentials provided
+% by the gcloud sdk. Note there are different paths for unix and windows.
+from_gcloud_adc(_Config) ->
+  % # config_root_dir = Application.get_env(:goth, :config_root_dir)
+  % config_root_dir = Keyword.get(config, :config_root_dir)
+
+  % path_root =
+  %   if config_root_dir == nil do
+  %     case :os.type() do
+  %       {:win32, _} ->
+  %         System.get_env("APPDATA") || ""
+
+  %       {:unix, _} ->
+  %         home_dir = System.get_env("HOME") || ""
+  %         Path.join([home_dir, ".config"])
+  %     end
+  %   else
+  %     config_root_dir
+  %   end
+
+  % path = Path.join([path_root, "gcloud", "application_default_credentials.json"])
+
+  % if File.regular?(path) do
+  %   path |> File.read!() |> decode_json()
+  % else
+  %   nil
+  % end
+  false.
+
+from_metadata(_) ->
+  #{<<"token_source">> => metadata}.
+
+decode_json(Json) ->
+  Config = jiffy:decode(Json),
+  set_token_source(Config).
+
+set_token_source({<<"private_key">>} = Map)->
+  maps:put(Map, <<"token_source">>, oauth_jwt).
 
 %%%_ * Tests -------------------------------------------------------
 
