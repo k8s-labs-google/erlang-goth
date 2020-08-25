@@ -6,7 +6,7 @@
 -export([refresh/1]).
 -export([queue_for_refresh/1]).
 
-
+-spec for_scope(Map, Map) -> {atom(), Map}.
 for_scope(#{account := Account, scope := Scope}, Sub) ->
   case token_store:find(#{account => Account, scope => Scope}, Sub)
   of
@@ -17,6 +17,7 @@ for_scope(#{account := Account, scope := Scope}, Sub) ->
       {ok, Token}
   end.
 
+-spec refresh(Map) -> {atom(), Map}.
 refresh({account = Account, scope = Scope}) ->
   retrieve_and_store(#{account => Account, scope => Scope}, undefined).
 

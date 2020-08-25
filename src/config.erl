@@ -48,18 +48,13 @@ load_and_init(AppConfig) ->
       is_map(Elem)
     end
     , tuple_to_list(ConfigTuple)),
-
-  % Config = from_metadata(AppConfig),
-  Config2 = map_config(lists:last(Config)),
+  {ok, Config2} = map_config(lists:last(Config)),
   ActorEmail = maps:get(<<"actor_email">>, AppConfig, undefined),
   ProjectId = determine_project_id(Config2, AppConfig),
-  Config3 = maps:put(Config2, <<"project_id">>, ProjectId),
-  Config4 = maps:put(Config3, <<"actor_email">>, ActorEmail),
+  Config3 = maps:put(<<"project_id">>, ProjectId, Config2),
+  Config4 = maps:put(<<"actor_email">>, ActorEmail, Config3),
 
   {ok, Config4}.
-
-
-
 
 handle_call({get, Key}, _From, State) ->
   GcpCredentials = maps:get("gcp_credentials", State),
@@ -70,23 +65,25 @@ handle_cast(_, State) -> {noreply, State}.
 
 %%%_ * Private functions -----------------------------------------------
 
-determine_project_id(Config, DynamicConfig) ->
-  case maps:get(<<"project_id">>, DynamicConfig, false) or
-    os:getenv("GOOGLE_CLOUD_PROJECT") or
-    os:getenv("GCLOUD_PROJECT") or
-    os:getenv("DEVSHELL_PROJECT_ID") or
-    maps:get(<<"project_id">>, Config, false) of
-    false ->
-      try egoth:retrieve_metadata_project() of
-        ProjectId -> ProjectId
-      catch
-      % TODO: catch on specific error
-          error -> erlang:error("Failed to retrieve project data from GCE internal metadata service.
-            Either you haven't configured your GCP credentials, you aren't running on GCE, or both.
-            Please see README.md for instructions on configuring your credentials.")
-      end;
-    ProjectId -> ProjectId
-  end.
+% TODO: rewrite or statement into tuple like above...
+determine_project_id(_Config, _DynamicConfig) ->
+  os:getenv("GOOGLE_CLOUD_PROJECT").
+  % case maps:get(<<"project_id">>, DynamicConfig, false) or
+  %   os:getenv("GOOGLE_CLOUD_PROJECT") or
+  %   os:getenv("GCLOUD_PROJECT") or
+  %   os:getenv("DEVSHELL_PROJECT_ID") or
+  %   maps:get(<<"project_id">>, Config, false) of
+  %   false ->
+  %     try egoth:retrieve_metadata_project() of
+  %       ProjectId -> ProjectId
+  %     catch
+  %     % TODO: catch on specific error
+  %         error -> erlang:error("Failed to retrieve project data from GCE internal metadata service.
+  %           Either you haven't configured your GCP credentials, you aren't running on GCE, or both.
+  %           Please see README.md for instructions on configuring your credentials.")
+  %     end;
+  %   ProjectId -> ProjectId
+  % end.
 
 
 map_config(Config) when is_map(Config) ->
@@ -140,39 +137,38 @@ from_creds_file(_Config) ->
 from_gcloud_adc(_Config) ->
   % # config_root_dir = Application.get_env(:goth, :config_root_dir)
   % config_root_dir = Keyword.get(config, :config_root_dir)
-
-  % path_root =
-  %   if config_root_dir == nil do
-  %     case :os.type() do
-  %       {:win32, _} ->
-  %         System.get_env("APPDATA") || ""
-
-  %       {:unix, _} ->
-  %         home_dir = System.get_env("HOME") || ""
-  %         Path.join([home_dir, ".config"])
-  %     end
-  %   else
-  %     config_root_dir
-  %   end
-
-  % path = Path.join([path_root, "gcloud", "application_default_credentials.json"])
-
-  % if File.regular?(path) do
-  %   path |> File.read!() |> decode_json()
-  % else
-  %   nil
-  % end
-  false.
+  % ConfigRootDir = undefined,
+  PathRoot = case os:type() of
+    {win32, _} ->
+      os:getenv("APPDATA", "");
+    {unix, _} ->
+      HomeDir = os:getenv("HOME", ""),
+      filename:join([HomeDir, ".config"])
+  end,
+  Path = filename:join([PathRoot, "gcloud", "application_default_credentials.json"]),
+  % creats a map #{}, {} reads a map
+  {ok, {_, _Size, Type, _Access, _, _, _CTime, _, _, _, _, _, _, _}} = file:read_file_info(Path),
+  if Type == regular ->
+    {ok, File} = file:read_file(Path),
+    io:fwrite("reading file~n"),
+    decode_json(File);
+  true ->
+    false
+  end.
 
 from_metadata(_) ->
   #{<<"token_source">> => metadata}.
 
 decode_json(Json) ->
-  Config = jiffy:decode(Json),
+  Config = jiffy:decode(Json, [return_maps]),
+  io:fwrite(maps:get(<<"refresh_token">>, Config)),
   set_token_source(Config).
 
-set_token_source({<<"private_key">>} = Map)->
-  maps:put(Map, <<"token_source">>, oauth_jwt).
+set_token_source(#{<<"refresh_token">> := _, <<"client_id">> := _, <<"client_secret">> := _} = Map) ->
+  io:fwrite(maps:get(<<"refresh_token">>, Map)),
+  maps:put(<<"token_source">>, oauth_refresh, Map);
+set_token_source(#{<<"private_key">> := _} = Map)->
+  maps:put(<<"token_source">>, oauth_jwt, Map).
 
 %%%_ * Tests -------------------------------------------------------
 

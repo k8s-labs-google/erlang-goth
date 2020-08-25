@@ -16,6 +16,7 @@
 
 % is there a way for this method to live in token.erl but still be consumable in
 % downstream modules?
+
 for_scope(Scope) ->
   token:for_scope(Scope).
 
