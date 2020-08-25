@@ -8,7 +8,6 @@
                   kernel,
                   stdlib,
                   inets,
-                  restc,
                   jwt
                  ]},
   {env, []},

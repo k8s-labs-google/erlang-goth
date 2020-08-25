@@ -19,19 +19,19 @@ start_link() ->
 
 init([]) ->
   Strategy = #{strategy => one_for_one,
-               intensity => 2,
-               period => 60},
-  ChildSpecs = [#{id => oauth2c_token_cache,
-                  start => {oauth2c_token_cache, start_link, []},
+                intensity => 2,
+                period => 60},
+  ChildSpecs = [#{id => token_store,
+                  start => {token_store, start_link, []},
                   restart => permanent,
                   shutdown => 5000,
                   type => worker,
-                  modules => [oauth2c_token_cache]
-                 },#{id => config,
-                 start => {config, start_link, []},
-                 restart => permanent,
-                 shutdown => 5000,
-                 type => worker,
-                 modules => [config]
+                  modules => [token_store]
+                },#{id => config,
+                  start => {config, start_link, []},
+                  restart => permanent,
+                  shutdown => 5000,
+                  type => worker,
+                  modules => [config]
                 }],
   {ok, {Strategy, ChildSpecs}}.
