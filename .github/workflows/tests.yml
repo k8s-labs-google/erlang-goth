@@ -14,4 +14,4 @@ jobs:
       - uses: gleam-lang/setup-erlang@v1.1.0
         with:
           otp-version: 22.1
-      - run: rebar3 eunit
+      - run: rebar3 eunit ; rebar3 ct
