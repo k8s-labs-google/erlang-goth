@@ -10,3 +10,17 @@
     type = undefined :: binary() | undefined
 }).
 
+-record(config, {
+    account :: string(),
+    scope   :: string(),
+    sub     = undefined :: string() | undefined
+}).
+
+-record(token, {
+    token   :: string(),
+    type    = undefined :: string() | undefined,
+    scope   = undefined :: string() | undefined,
+    sub     = undefined :: string() | undefined,
+    expires :: non_neg_integer(),
+    account :: string()
+}).

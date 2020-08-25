@@ -2,6 +2,8 @@
 
 -behaviour(gen_server).
 
+-include("egoth.hrl").
+
 -export([start/0]).
 -export([start_link/0]).
 
@@ -38,7 +40,8 @@ init(State) ->
   {ok, Config} = load_and_init(DynamicConfig),
   {ok, Config}.
 
-load_and_init(AppConfig) ->
+-spec load_and_init(config) -> {'ok', config}.
+load_and_init(#config{}=AppConfig) ->
   % TODO: figure out how this looks in erlang
   % Config = from_json(AppConfig) or from_config(AppConfig) or from_creds_file(AppConfig) or
   %   from_gcloud_adc(AppConfig) or from_metadata(AppConfig),
