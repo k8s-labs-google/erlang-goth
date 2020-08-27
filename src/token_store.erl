@@ -20,19 +20,20 @@
 -define(SERVER, ?MODULE).
 
 % docs
-
--spec store(#config{account :: string(), scope :: string()}, _, any()) -> 'ok'.
+-spec store(#config{}, _, #token{}) -> Return when
+  Return :: ok | {error, _}.
 store(#config{account = Account, scope = Scope}, Sub, Token) ->
-  io:fwrite("storring dogs"),
   Message = #config{account = Account, scope = Scope, sub = Sub},
   gen_server:call(?SERVER, {store, Message, Token}).
 
--spec find(#config{account :: string(), scope :: string()}, _) -> any().
+-spec find(#config{}, _) -> Return when
+  Return :: {ok, #token{}} | {error, _}.
 find(#config{account = Account, scope = Scope}, Sub) ->
   Message = #config{account = Account, scope = Scope, sub = Sub},
   gen_server:call(?SERVER, {find, Message}).
 
--spec clear() -> 'ok'.
+-spec clear() -> Value when
+  Value :: ok.
 clear() ->
   gen_server:cast(?SERVER, {clear, {}}).
 
@@ -56,18 +57,37 @@ handle_cast(_, State) ->
   {noreply, State}.
 
 % when we store a token, we should refresh it later
-handle_call({store, #config{} = Config, #token{} = Token}, _From, State) ->
+handle_call({store, #config{account = Account} = _Config, #token{} = Token}, _From, State) ->
   % this is a race condition when inserting an expired (or about to expire) token...
   PidOrTimer = token:queue_for_refresh(Token),
-  Key = lists:flatten(io_lib:format("~0p", [Config])),
-  NewState = maps:put(Key, Token, State),
-  % io:fwrite(NewState),
-  {reply, PidOrTimer, NewState};
-handle_call({find, #config{account = Account, scope = Scope, sub = Sub} = Config}, _From, State) ->
-  Key = lists:flatten(io_lib:format("~0p", [Config])),
-  Token = maps:get(Key, State),
+  % Key = lists:flatten(io_lib:format("~0p", [Config])),
+  % NewState = maps:put(Account, Token, State),
+
+  % TODO: map all record values to this map
+  NewState2 = #{
+    token => Token#token.token
+  },
+
+  maps:put(Account, NewState2, State),
+
+  {reply, PidOrTimer, NewState2};
+
+% TODO: check elixir goth
+handle_call({find, #config{account = Account, scope = _Scope, sub = _Sub} = _Config}, _From, State) ->
+  Token = maps:get(Account, State, #{}),
   Filtered = filter_expired(Token, 100),
-  reply(Filtered, State, {Account, Scope, Sub}).
+  Expres = maps:get("token", Filtered, false),
+
+  if
+  Expres == false ->
+    {reply, error, State};
+  true ->
+    {reply, Filtered, State}
+  end.
+
+
+
+  % reply(Filtered, State, State).
 
 % filter_expired(error, _) ->
 %   error;
@@ -79,5 +99,5 @@ filter_expired(Value, _) ->
 % reply(error, State, #config{account = Account, scope = Scope, sub = Sub}) ->
 %   NewState = maps:remove(#config{account = Account, scope = Scope, sub = Sub}, State),
 %   {reply, error, NewState};
-reply(Value, State, _Key) ->
-  {reply, Value, State}.
+% reply(Value, State, _Key) ->
+%   {reply, Value, State}.

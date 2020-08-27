@@ -2,41 +2,81 @@
 
 -include("egoth.hrl").
 
+-export([for_scope/1]).
 -export([for_scope/2]).
 -export([refresh/1]).
 -export([queue_for_refresh/1]).
+-export([from_response_json/2]).
 
--spec for_scope(Map, Map) -> {atom(), Map}.
-for_scope(#config{account = Account, scope = Scope}, Sub) ->
+- spec for_scope(Scope) -> Return when
+  Scope :: binary(),
+  Return :: {ok, #token{}} | {error, _}.
+for_scope(Scope) ->
+  for_scope(Scope, undefined).
+
+- spec for_scope(Scope, Sub) -> Value when
+  %          scope    | {account,           scope}
+  Scope   :: binary() | {string() | atom(), binary()},
+  Sub   :: string() | undefined,
+  Value :: {ok, #token{}} | {error, _}.
+for_scope(Scope, Sub) when is_binary(Scope) ->
+  Token = token_store:find(#config{account = "default", scope = Scope}, Sub),
+  case token_store:find(#config{account = "default", scope = Scope}, Sub)
+  of
+    error ->
+      retrieve_and_store(#config{account = "default", scope = Scope}, Sub);
+    Token ->
+      {ok, Token}
+  end;
+for_scope({account = Account, scope = Scope}, Sub) ->
   case token_store:find(#config{account = Account, scope = Scope}, Sub)
   of
-    {ok, Token} ->
+    {reply, Token, _} ->
       {ok, Token};
     {error, _} ->
-      {ok, Token} = retrieve_and_store(#config{account = Account, scope = Scope}, Sub),
-      {ok, Token}
+      retrieve_and_store(#config{account = Account, scope = Scope}, Sub)
   end.
 
--spec refresh(#config{}) -> {atom(), string()}.
-refresh(#config{account = Account, scope = Scope}) ->
-  retrieve_and_store(#{account => Account, scope => Scope}, undefined).
+-spec refresh(#config{}) -> Return when
+  Return :: #token{} | {'error', _}.
+refresh(Token) ->
+  retrieve_and_store(#config{account = Token#token.account, scope = Token#token.scope}, undefined).
 
--spec retrieve_and_store(#config{}, map()) -> {'ok', string()}.
+-spec retrieve_and_store(Config, Sub) -> Return when
+  Config :: #config{},
+  Sub   :: string() | undefined,
+  Return :: {ok, #token{}} | {error, _}.
 retrieve_and_store(#config{account = Account, scope = Scope}, Sub) ->
-  Token = egoth:get_access_token(#{account => Account, scope => Scope}),
-  token_store:store(#config{account = Account, scope = Scope}, Sub, Token),
-  {ok, Token}.
+  case egoth:get_access_token(#config{account = Account, scope = Scope}) of
+    {ok, Token} ->
+      token_store:store(#config{account = Account, scope = Scope}, Sub, Token),
+      {ok, Token};
+    {error, Reason} ->
+      {error, Reason}
+  end.
 
--spec queue_for_refresh(#token{}) -> pid() | term().
+-spec queue_for_refresh(Token) -> Value when
+  Token :: #token{},
+  Value :: pid() | term().
 queue_for_refresh(#token{expires = Expires} = Token) ->
   Diff = Expires - os:system_time(),
   if Diff < 10 ->
-    rpc:async_call(node(), ?MODULE, refresh, Token);
+    rpc:async_call(node(), ?MODULE, refresh, [Token]);
   true ->
-    io:fwrite("timer"),
     {ok, TimerRef } = timer:apply_after((Diff - 10) * 1000, ?MODULE, refresh, [Token]),
     TimerRef
   end.
+
+from_response_json(#config{account = Account, scope = Scope}, ResponseBody) ->
+  Json = jiffy:decode(ResponseBody, [ return_maps ]),
+
+  #token{
+    token = maps:get(<<"access_token">>, Json),
+    type = maps:get(<<"token_type">>, Json),
+    scope = Scope,
+    account = Account,
+    expires = os:system_time() + maps:get(<<"expires_in">>, Json)
+  }.
 
 % def queue_for_refresh(%__MODULE__{} = token) do
 %   diff = token.expires - :os.system_time(:seconds)
