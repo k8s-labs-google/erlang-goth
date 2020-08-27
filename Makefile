@@ -30,6 +30,9 @@ unlock:
 lock:
 	rebar3 lock
 
+docs:
+	rebar3 edoc
+
 elvis:
 ifdef ELVIS_IN_PATH
 	elvis git-branch origin/HEAD -V

@@ -8,7 +8,14 @@
 
 -export ([retrieve_metadata_project/0]).
 
+% -define(OAUTH_URL, <<"https://www.googleapis.com/oauth2/v4/token">>).
 -define(OAUTH_URL, <<"https://www.googleapis.com/oauth2/v4/token">>).
+-define(OAUTH_REFRESH_URL(ClientId),
+  lists:concat(["https://www.googleapis.com/oauth2/v4/token?client_id=", ClientId, ",access_type=offline,nonc=foobar,response_type=code,"])).
+
+% -define(CLOUD_TRACE_URL(Project, TraceId, SpanId),
+%   lists:concat(["https://cloudtrace.googleapis.com/v2/projects/", Project, "/traces/", TraceId, "/spans/", SpanId])).
+
 
 -include("egoth.hrl").
 
@@ -17,75 +24,92 @@
 % is there a way for this method to live in token.erl but still be consumable in
 % downstream modules?
 
+- spec for_scope(Scope) -> Return when
+  Scope :: binary(),
+  Return :: {ok, #token{}}.
 for_scope(Scope) ->
   token:for_scope(Scope).
 
-get_access_token(Scope) ->
-  get_access_token(oauth_jwt, Scope).
+- spec get_access_token(Scope) -> Return when
+  Scope  :: #config{},
+  Return :: {ok, #token{}}  | {'error', _}.
+get_access_token(#config{}=Scope) ->
+  Config = config:get(token_source),
+  {_, TokenSource} = Config#config.token_source,
+  get_access_token({TokenSource}, Scope).
 
-get_access_token({oauth_jwt}, Scope) ->
+- spec get_access_token({atom()}, Scope) -> Return when
+  Scope  :: #config{},
+  Return :: {ok, #token{}}  | {'error', _}.
+get_access_token({oauth_jwt}, #config{}=Scope) ->
   Headers = [{
     <<"Content-Type">>, <<"application/x-www-form-urlencoded">>
   }],
+  Assertion = jwt(Scope),
   Body = [{
-      <<"grant_type">>, <<"urn:ietf:params:oauth:grant-type:jwt-bearer">>
-    }, {
-      <<"assertion">>, jwt(Scope)
+    <<"grant_type">>, <<"urn:ietf:params:oauth:grant-type:jwt-bearer">>},
+    {<<"assertion">>, Assertion
   }],
-  Payload = jiffy:encode(Body),
+
   Options = [],
-  case hackney:post(?OAUTH_URL, Headers, Payload, Options)
+  Return = case hackney:post(?OAUTH_URL, Headers, {form, Body}, Options)
   of
     {ok, _, _, ClientRef} ->
-      {token = Token} = jiffy:decode(hackney:body(ClientRef), [ return_maps ]),
+      {ok, ResponseBody} = hackney:body(ClientRef),
+      % should be Scope => Config
+      Token = token:from_response_json(Scope, ResponseBody),
       {ok, Token};
     {error, Reason} ->
       {error, Reason}
-  end;
+  end,
+  Return;
+get_access_token({oauth_refresh}, #config{}= _Scope) ->
+  Config = config:get(refresh_token),
+  {_, RefreshToken} = Config#config.refresh_token,
+  {_, ClientId} = Config#config.client_id,
+  {_, ClientSecret} = Config#config.client_secret,
+  Headers = [{
+    <<"Content-Type">>, <<"application/x-www-form-urlencoded">>
+  }],
+  Body = [#{
+    grant_type => authorization_code,
+    refresh_token => RefreshToken,
+    client_id => ClientId,
+    client_secret => ClientSecret,
+    access_type => offline
+  }],
+  Payload = jiffy:encode(Body),
+  Options = [],
+  URL = list_to_binary(?OAUTH_REFRESH_URL(binary_to_list(ClientId))),
+  Return = case hackney:post(URL, Headers, Payload, Options)
+  of
+    {ok, _, _, ClientRef} ->
+      {ok, ResponseBody} = hackney:body(ClientRef),
+      {token = Token} = jiffy:decode(ResponseBody, [ return_maps ]),
+      {ok, Token};
+    {error, Reason} ->
+      {error, Reason}
+  end,
+  Return;
 get_access_token({metadata}, _Scope) ->
-  % TODO: account needs to be specificed
+  % TODO: account needs to be specificed in URL
   URL = "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default",
   Headers = [
     {
       <<"Metadata-Flavor">>, <<"Google">>
     }
   ],
+  Payload = <<>>,
   Options = [],
   % https://github.com/benoitc/hackney
-  {ok, _, _, ClientRef} = hackney:get(URL, Headers, Options),
-  {token = Token} = jiffy:decode(hackney:body(ClientRef), [ return_maps ]),
-  {ok, Token}.
-
-%   headers = [{"Metadata-Flavor", "Google"}]
-%   account = Application.get_env(:goth, :metadata_account, "default")
-%   metadata = Application.get_env(:goth, :metadata_url, "http://metadata.google.internal")
-%   endpoint = "computeMetadata/v1/instance/service-accounts"
-%   url_base = "#{metadata}/#{endpoint}/#{account}"
-
-%   url = "#{url_base}/token"
-%   {:ok, token} = HTTPoison.get(url, headers)
-%   {:ok, Token.from_response_json({service_account, scope}, token.body)}
-% end
-
-% handle_response(Client, Body) ->
-%   AccessToken = proplists:get_value(<<"access_token">>, Body),
-%   TokenType = proplists:get_value(<<"token_type">>, Body, ""),
-%   ExpireTime =
-%     case proplists:get_value(<<"expires_in">>, Body) of
-%       undefined -> undefined;
-%       ExpiresIn -> erlang:system_time(second) + ExpiresIn
-%     end,
-%   RefreshToken = proplists:get_value(<<"refresh_token">>,
-%                                     Body,
-%                                     Client#client.refresh_token),
-%   Result = #client{access_token  = AccessToken
-%                   , refresh_token = RefreshToken
-%                   , id            = Client#client.id
-%                   , secret        = Client#client.secret
-%                   , scope         = Client#client.scope
-%                   , expire_time   = ExpireTime
-%                   },
-%   Result.
+  case hackney:get(URL, Headers, Payload, Options)
+  of
+    {ok, _, _, ClientRef} ->
+      {token = Token} = jiffy:decode(hackney:body(ClientRef), [ return_maps ]),
+      {ok, Token};
+    {error, Reason} ->
+      {error, Reason}
+  end.
 
 retrieve_metadata_project() ->
   URL = "http://metadata.google.internal/computeMetadata/v1/project/project-id",
@@ -99,21 +123,29 @@ retrieve_metadata_project() ->
 
 %%% INTERNAL ===================================================================
 
+- spec claims(Scope) -> Return when
+  Scope :: #config{},
+  Return :: map().
 claims(Scope) ->
-  Value = config:get(<<"client_email">>),
+  Config = config:get(client_email),
+  {_, Value} = Config#config.client_email,
   {MegaSecs, Secs, _} = erlang:timestamp(),
   UnixTime = MegaSecs * 1000000 + Secs,
   #{
     <<"iss">> => Value,
-    <<"scope">> => Scope,
+    <<"scope">> => Scope#config.scope,
     <<"aud">> => <<"https://www.googleapis.com/oauth2/v4/token">>,
     <<"iat">> => UnixTime,
     <<"exp">> => UnixTime + 3600
   }.
 
+- spec jwt(Scope) -> Return when
+  Scope :: #config{},
+  Return :: binary().
 jwt(Scope) ->
   Claims = claims(Scope),
-  PrivateKey = config:get(<<"private_key">>),
+  Config = config:get(private_key),
+  {_, PrivateKey} = Config#config.private_key,
   {ok, Token} = jwt:encode(<<"RS256">>, Claims, PrivateKey),
   Token.
 

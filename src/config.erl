@@ -2,6 +2,8 @@
 
 -behaviour(gen_server).
 
+-include("egoth.hrl").
+
 -export([start/0]).
 -export([start_link/0]).
 
@@ -23,43 +25,44 @@ start() ->
 start_link() ->
   gen_server:start_link({local, ?SERVER}, ?SERVER, {}, []).
 
-%%%_ * gen_server callbacks --------------------------------------------
-
 -spec get(Key) -> Value | Error when
-    Key :: string(),
+    Key :: string() | binary(),
     Value :: {ok,  term()},
     Error :: {error, atom()}.
 get(Key) ->
   gen_server:call(?SERVER, {get,
                             Key}).
 
-init(State) ->
+init(State) when is_tuple(State) ->
+  % {ok, DynamicConfig} = config_mod_init(State),
+  % {ok, Config} = load_and_init(DynamicConfig),
+  % {ok, Config};
+  init(#{});
+init(#{}=State) ->
   {ok, DynamicConfig} = config_mod_init(State),
   {ok, Config} = load_and_init(DynamicConfig),
   {ok, Config}.
 
-load_and_init(AppConfig) ->
-  % TODO: figure out how this looks in erlang
-  % Config = from_json(AppConfig) or from_config(AppConfig) or from_creds_file(AppConfig) or
-  %   from_gcloud_adc(AppConfig) or from_metadata(AppConfig),
-
+-spec load_and_init(Config) -> Return when
+  Config :: #config{},
+  Return :: {'ok', #config{}}.
+load_and_init(#config{}=AppConfig) ->
   ConfigTuple = {from_json(AppConfig), from_config(AppConfig), from_creds_file(AppConfig), from_gcloud_adc(AppConfig), from_metadata(AppConfig)},
   Config = lists:filter(fun(Elem) ->
       is_map(Elem)
     end
     , tuple_to_list(ConfigTuple)),
-  {ok, Config2} = map_config(lists:last(Config)),
-  ActorEmail = maps:get(<<"actor_email">>, AppConfig, undefined),
-  ProjectId = determine_project_id(Config2, AppConfig),
-  Config3 = maps:put(<<"project_id">>, ProjectId, Config2),
-  Config4 = maps:put(<<"actor_email">>, ActorEmail, Config3),
-
+  {Config2, _} = lists:split(1, Config),
+  {ok, Config3} = map_config(lists:last(Config2)),
+  ActorEmail = AppConfig#config.actor_email,
+  ProjectId = determine_project_id(Config3, AppConfig),
+  Config4 = Config3#config{project_id = ProjectId, actor_email = ActorEmail},
   {ok, Config4}.
 
-handle_call({get, Key}, _From, State) ->
-  GcpCredentials = maps:get("gcp_credentials", State),
-  Value = maps:get(Key, GcpCredentials),
-  {reply, Value, State}.
+handle_call({get, _Key}, _From, State) ->
+  % GcpCredentials = maps:get("gcp_credentials", State),
+  % Value = maps:get(Key, State, undefined),
+  {reply, State, State}.
 
 handle_cast(_, State) -> {noreply, State}.
 
@@ -85,11 +88,18 @@ determine_project_id(_Config, _DynamicConfig) ->
   %   ProjectId -> ProjectId
   % end.
 
-
+- spec map_config(Config) -> Return when
+  Config :: map(),
+  Return :: #config{}.
 map_config(Config) when is_map(Config) ->
-  {ok, Config};
-map_config({client_email = Account} = Config) ->
-  Config2 = #{<<"account">> => Account, <<"config">> => Config},
+  Fields = record_info(fields, config),
+  [Tag| Values] = tuple_to_list(#config{}),
+  Defaults = lists:zip(Fields, Values),
+  L = lists:map(fun ({_K, _V}) -> {_K, maps:get(list_to_binary(atom_to_list(_K)), Config, undefined)} end, Defaults),
+  Tupes = list_to_tuple([Tag|L]),
+  {ok, Tupes};
+map_config(#config{client_email = Account} = Config) ->
+  Config2 = #config{account = Account, config = Config},
   {ok, Config2}.
 
 % TODO: implement
@@ -105,25 +115,25 @@ config_mod_init(_Config) ->
   %         {:ok, config}
   %       end
   %   end
-  {ok, #{}}.
+  {ok, #config{}}.
 
 % TODO: implement
 from_json(Config) ->
-  io:fwrite("from_json"),
-  case maps:get(<<"json">>, Config, false) of
-    false -> false;
+  case Config#config.json of
+    undefined -> false;
     % {:system, var} -> decode_json(System.get_env(var))
     Json -> decode_json(Json)
   end.
 
 % TODO: implement
 from_config(Config) ->
-  io:fwrite("from_config"),
-  maps:get(<<"config">>, Config, false).
+  case Config#config.config of
+    undefined -> false;
+    % {:system, var} -> decode_json(System.get_env(var))
+    Json -> decode_json(Json)
+  end.
 
 from_creds_file(_Config) ->
-  io:fwrite("from_creds_file~n"),
-  io:fwrite(os:getenv("GOOGLE_APPLICATION_CREDENTIALS")),
   case os:getenv("GOOGLE_APPLICATION_CREDENTIALS") of
     false -> false;
     CredentialsPath ->
@@ -131,7 +141,6 @@ from_creds_file(_Config) ->
       decode_json(File)
   end.
 
-% TODO: implement
 % Search the well-known path for application default credentials provided
 % by the gcloud sdk. Note there are different paths for unix and windows.
 from_gcloud_adc(_Config) ->
@@ -150,7 +159,6 @@ from_gcloud_adc(_Config) ->
   {ok, {_, _Size, Type, _Access, _, _, _CTime, _, _, _, _, _, _, _}} = file:read_file_info(Path),
   if Type == regular ->
     {ok, File} = file:read_file(Path),
-    io:fwrite("reading file~n"),
     decode_json(File);
   true ->
     false
@@ -161,11 +169,9 @@ from_metadata(_) ->
 
 decode_json(Json) ->
   Config = jiffy:decode(Json, [return_maps]),
-  io:fwrite(maps:get(<<"refresh_token">>, Config)),
   set_token_source(Config).
 
 set_token_source(#{<<"refresh_token">> := _, <<"client_id">> := _, <<"client_secret">> := _} = Map) ->
-  io:fwrite(maps:get(<<"refresh_token">>, Map)),
   maps:put(<<"token_source">>, oauth_refresh, Map);
 set_token_source(#{<<"private_key">> := _} = Map)->
   maps:put(<<"token_source">>, oauth_jwt, Map).

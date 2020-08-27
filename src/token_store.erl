@@ -2,6 +2,8 @@
 
 -behaviour(gen_server).
 
+-include("egoth.hrl").
+
 -export([start/0]).
 -export([start_link/0]).
 
@@ -13,17 +15,27 @@
 %% API
 -export([store/3]).
 -export([find/2]).
+-export([clear/0]).
 
 -define(SERVER, ?MODULE).
 
-% API
-store({account = Account, scope = Scope}, Sub, Token) ->
-  Message = #{account => Account, scope => Scope, sub => Sub},
-  gen_server:cast(?SERVER, {store, Message, Token}).
+% docs
+-spec store(#config{}, _, #token{}) -> Return when
+  Return :: ok | {error, _}.
+store(#config{account = Account, scope = Scope}, Sub, Token) ->
+  Message = #config{account = Account, scope = Scope, sub = Sub},
+  gen_server:call(?SERVER, {store, Message, Token}).
 
-find({Account, Scope}, Sub) ->
-  Message = #{account => Account, scope => Scope, sub => Sub},
+-spec find(#config{}, _) -> Return when
+  Return :: {ok, #token{}} | {error, _}.
+find(#config{account = Account, scope = Scope}, Sub) ->
+  Message = #config{account = Account, scope = Scope, sub = Sub},
   gen_server:call(?SERVER, {find, Message}).
+
+-spec clear() -> Value when
+  Value :: ok.
+clear() ->
+  gen_server:cast(?SERVER, {clear, {}}).
 
 % gen server
 -spec start() -> {atom(), pid()}.
@@ -34,32 +46,58 @@ start() ->
 start_link() ->
   gen_server:start_link({local, ?SERVER}, ?SERVER, {}, []).
 
-init(State) ->
-  {ok, State}.
+-spec init(tuple()) -> {'ok', _}.
+init(_State) ->
+  {ok, #{}}.
 
+- spec handle_cast({atom()}, _) -> {'noreply', _}.
+handle_cast({clear}, _State) ->
+  {noreply, #{}};
 handle_cast(_, State) ->
-  {reply, State}.
+  {noreply, State}.
 
 % when we store a token, we should refresh it later
-handle_call({store, #{account := Account, scope := Scope, sub := Sub}, Token}, _From, State) ->
+handle_call({store, #config{account = Account} = _Config, #token{} = Token}, _From, State) ->
   % this is a race condition when inserting an expired (or about to expire) token...
-  pid_or_timer = token:queue_for_refresh(Token),
-  NewState = maps:put(State, {Account, Scope, Sub}, Token),
-  {reply, pid_or_timer, NewState};
-handle_call({find, #{account := Account, scope := Scope, sub := Sub}}, _From, State) ->
-  Token = maps:get(State, {Account, Scope, Sub}),
-  Filtered = filter_expired(Token, 100),
-  reply(Filtered, State, {Account, Scope, Sub}).
+  PidOrTimer = token:queue_for_refresh(Token),
+  % Key = lists:flatten(io_lib:format("~0p", [Config])),
+  % NewState = maps:put(Account, Token, State),
 
-filter_expired(error, _) ->
-  error;
-filter_expired({ok, #{expires := Expires}}, SystemTime) when Expires < SystemTime ->
-  error;
+  % TODO: map all record values to this map
+  NewState2 = #{
+    token => Token#token.token
+  },
+
+  maps:put(Account, NewState2, State),
+
+  {reply, PidOrTimer, NewState2};
+
+% TODO: check elixir goth
+handle_call({find, #config{account = Account, scope = _Scope, sub = _Sub} = _Config}, _From, State) ->
+  Token = maps:get(Account, State, #{}),
+  Filtered = filter_expired(Token, 100),
+  Expres = maps:get("token", Filtered, false),
+
+  if
+  Expres == false ->
+    {reply, error, State};
+  true ->
+    {reply, Filtered, State}
+  end.
+
+
+
+  % reply(Filtered, State, State).
+
+% filter_expired(error, _) ->
+%   error;
+% filter_expired({ok, #{expires := Expires}}, SystemTime) when Expires < SystemTime ->
+%   error;
 filter_expired(Value, _) ->
   Value.
 
-reply(error, State, #{account := Account, scope := Scope, sub := Sub}) ->
-  NewState = maps:remove(State, {Account, Scope, Sub}),
-  {reply, error, NewState};
-reply(Value, State, _Key) ->
-  {reply, Value, State}.
+% reply(error, State, #config{account = Account, scope = Scope, sub = Sub}) ->
+%   NewState = maps:remove(#config{account = Account, scope = Scope, sub = Sub}, State),
+%   {reply, error, NewState};
+% reply(Value, State, _Key) ->
+%   {reply, Value, State}.
