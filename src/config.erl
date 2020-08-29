@@ -26,8 +26,8 @@ start_link() ->
   gen_server:start_link({local, ?SERVER}, ?SERVER, {}, []).
 
 -spec get(Key) -> Value | Error when
-    Key :: string() | binary(),
-    Value :: {ok,  term()},
+    Key :: atom() | string() | binary(),
+    Value :: {ok,  #config{}},
     Error :: {error, atom()}.
 get(Key) ->
   gen_server:call(?SERVER, {get,
@@ -45,7 +45,7 @@ init(#{}=State) ->
 
 -spec load_and_init(Config) -> Return when
   Config :: #config{},
-  Return :: {'ok', #config{}}.
+  Return :: {ok, #config{}}.
 load_and_init(#config{}=AppConfig) ->
   ConfigTuple = {from_json(AppConfig), from_config(AppConfig), from_creds_file(AppConfig), from_gcloud_adc(AppConfig), from_metadata(AppConfig)},
   Config = lists:filter(fun(Elem) ->
@@ -90,7 +90,7 @@ determine_project_id(_Config, _DynamicConfig) ->
 
 - spec map_config(Config) -> Return when
   Config :: map(),
-  Return :: #config{}.
+  Return :: {ok, #config{}}.
 map_config(Config) when is_map(Config) ->
   Fields = record_info(fields, config),
   [Tag| Values] = tuple_to_list(#config{}),
@@ -118,9 +118,12 @@ config_mod_init(_Config) ->
   {ok, #config{}}.
 
 % TODO: implement
+- spec from_json(Config) -> Return when
+  Config :: #config{},
+  Return :: boolean() | map().
 from_json(Config) ->
   case Config#config.json of
-    undefined -> false;
+    'undefined' -> false;
     % {:system, var} -> decode_json(System.get_env(var))
     Json -> decode_json(Json)
   end.

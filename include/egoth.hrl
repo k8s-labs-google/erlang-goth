@@ -1,6 +1,6 @@
 -record(config, {
-    account :: string(),
-    scope   :: string(),
+    account = undefined :: string() | undefined,
+    scope   = undefined :: string() | undefined,
     sub     = undefined :: string() | undefined,
 
     json   = undefined :: string() | undefined,
