@@ -1,12 +1,13 @@
 {
-	"name": "Erlang OTP 22 Alpine",
+	"name": "Erlang OTP 22",
 	"build": {
-		"dockerfile": "alpine.Dockerfile"
+		"dockerfile": "Dockerfile"
 	},
 	"runArgs": [
-		"-v", "${env:HOME}/.config/gcloud:/home/ex/.config/gcloud:ro",
-		"-v","/var/run/docker.sock:/var/run/docker.sock"
+		// "-v", "${env:HOME}/.config/gcloud:/home/sr-erlang/.config/gcloud:ro",
+		// "-v","/var/run/docker.sock:/var/run/docker.sock"
 	],
+	// "remoteUser": "sr-erlang",
 	"postCreateCommand": "echo done",
 	"extensions": [
 		"benvp.vscode-hex-pm-intellisense",

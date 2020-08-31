@@ -3,15 +3,20 @@
 FROM erlang:22-alpine
 
 ARG USER=sr-erlang
+ARG USER_UID=1000
+ARG USER_GID=$USER_UID
+
 ENV HOME /home/$USER
 
 RUN apk update && \
     apk add sudo \
     bash
 
-RUN adduser -D --home /home/$USER --shell /bin/bash --uid 1000 $USER && \
-    echo "$USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/$USER && \
-    chmod 0440 /etc/sudoers.d/$USER
+RUN useradd -s /bin/bash --uid $USER_UID --gid $USER_GID -m $USERNAME
+
+# RUN adduser -D --home /home/$USER --shell /bin/bash --uid 1000 $USER && \
+#     echo "$USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/$USER && \
+#     chmod 0440 /etc/sudoers.d/$USER
 
 # [Optional] Add sudo support
 # RUN apt-get install -y sudo \
