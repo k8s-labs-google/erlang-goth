@@ -1,7 +1,7 @@
 {
 	"name": "Erlang OTP 22 Alpine",
 	"build": {
-		"dockerfile": "Dockerfile"
+		"dockerfile": "alpine.Dockerfile"
 	},
 	"runArgs": [
 		"-v", "${env:HOME}/.config/gcloud:/home/ex/.config/gcloud:ro",
