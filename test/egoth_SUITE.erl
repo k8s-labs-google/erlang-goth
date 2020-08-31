@@ -22,16 +22,19 @@ all() -> [
     get_access_token_metadata
   ].
 
+% https://github.com/heroku/esputnik/blob/master/test/esputnik_first_SUITE.erl
 init_per_suite(Config) ->
-  meck:new(hackney, [unstick]),
-  meck:expect(hackney, request, fun(_) -> {ok, 200, 0, ok} end),
-  meck:expect(hackney, get, fun(_) -> {ok, 200, 0, ok} end),
-  meck:expect(hackney, post, fun(_) -> {ok, 200, 0, ok} end),
+  {ok, _MeckApps} = application:ensure_all_started(meck),
+  % meck:new(hackney, [unstick]),
+  % meck:expect(hackney, request, fun(_) -> {ok, 200, 0, ok} end),
+  % meck:expect(hackney, get, fun(_) -> {ok, 200, 0, ok} end),
+  % meck:expect(hackney, post, fun(_) -> {ok, 200, 0, ok} end),
 
   {ok, Pid} = config:start(),
   {ok, _Pid2} = token_store:start(),
   [{config_pid, Pid}|Config].
 end_per_suite(Config) ->
+  meck:unload(hackney),
   {config_pid, Pid} = proplists:lookup(config_pid, Config),
   % {token_pid, Pid2} = proplists:lookup(token_pid, Config),
   exit(Pid, shutdown),
@@ -39,6 +42,23 @@ end_per_suite(Config) ->
   ok.
 
 init_per_testcase(TestCase, Config) ->
+  meck:new(hackney, [unstick, passthrough]),
+  meck:expect(hackney, request,
+              fun(get, <<"http://metadata.google.internal/computeMetadata/v1/project/project-id">>, [], {}, _) ->
+                      {ok, 200, ["foobar"], connection1}
+              end),
+  meck:expect(hackney, send_request,
+              fun(connection2, _) ->
+                      {error, closed}
+              end),
+  meck:expect(hackney, body,
+              fun(connection1) ->
+                      {ok, <<"{\"request_id\":\"random\"}">>}
+              end),
+  meck:expect(hackney, close,
+              fun(active_client) ->
+                      ok
+              end),
   ?MODULE:TestCase({init, Config}).
 
 end_per_testcase(TestCase, Config) ->
