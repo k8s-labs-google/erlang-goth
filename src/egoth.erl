@@ -124,8 +124,8 @@ retrieve_metadata_project() ->
   }],
   Options = [],
   {ok, _, _, ClientRef} = hackney:get(URL, Headers, Options),
-  % probably returns json, need to parse
-  hackney:body(ClientRef).
+  {ok, ResponseBody} = hackney:body(ClientRef),
+  ResponseBody.
 
 
 %%% INTERNAL ===================================================================

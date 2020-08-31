@@ -10,16 +10,20 @@
 	// "remoteUser": "sr-erlang",
 	"postCreateCommand": "echo done",
 	"extensions": [
-		"benvp.vscode-hex-pm-intellisense",
+		// ms extensions
+		"ms-azuretools.vscode-docker",
+
+		// general extensions
 		"streetsidesoftware.code-spell-checker",
 		"eriklynd.json-tools",
-		"pgourlain.erlang",
-		"ms-azuretools.vscode-docker",
-		"alefragnani.bookmarks",
-		"donjayamanne.githistory",
 		"redhat.vscode-yaml",
-		"awesomektvn.scratchpad",
 		"eamodio.gitlens",
-		"humao.rest-client",
+		"donjayamanne.githistory",
+		// "humao.rest-client",
+
+		// erlang-specific
+		"pgourlain.erlang",
+		"yuce.erlang-otp",
+		"sztheory.erlang-formatter"
 	]
 }

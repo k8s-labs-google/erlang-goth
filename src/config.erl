@@ -65,7 +65,6 @@ handle_call({get}, _From, State) ->
   {reply, State, State}.
 
 handle_cast(_, State) -> {noreply, State}.
-
 %%%_ * Private functions -----------------------------------------------
 
 % TODO: rewrite or statement into tuple like above...
