@@ -13,7 +13,7 @@
 -export([handle_cast/2]).
 
 %% API
--export([get/1]).
+-export([get/0]).
 
 -define(SERVER, ?MODULE).
 
@@ -25,13 +25,11 @@ start() ->
 start_link() ->
   gen_server:start_link({local, ?SERVER}, ?SERVER, {}, []).
 
--spec get(Key) -> Value | Error when
-    Key :: atom() | string() | binary(),
+-spec get() -> Value | Error when
     Value :: {ok,  #config{}},
     Error :: {error, atom()}.
-get(Key) ->
-  gen_server:call(?SERVER, {get,
-                            Key}).
+get() ->
+  gen_server:call(?SERVER, {get}).
 
 init(State) when is_tuple(State) ->
   % {ok, DynamicConfig} = config_mod_init(State),
@@ -39,6 +37,7 @@ init(State) when is_tuple(State) ->
   % {ok, Config};
   init(#{});
 init(#{}=State) ->
+  % TODO: check for passed in args, or the ability to specify a config file
   {ok, DynamicConfig} = config_mod_init(State),
   {ok, Config} = load_and_init(DynamicConfig),
   {ok, Config}.
@@ -59,7 +58,8 @@ load_and_init(#config{}=AppConfig) ->
   Config4 = Config3#config{project_id = ProjectId, actor_email = ActorEmail},
   {ok, Config4}.
 
-handle_call({get, _Key}, _From, State) ->
+% maps vs records, oh my!
+handle_call({get}, _From, State) ->
   % GcpCredentials = maps:get("gcp_credentials", State),
   % Value = maps:get(Key, State, undefined),
   {reply, State, State}.
@@ -69,24 +69,30 @@ handle_cast(_, State) -> {noreply, State}.
 %%%_ * Private functions -----------------------------------------------
 
 % TODO: rewrite or statement into tuple like above...
-determine_project_id(_Config, _DynamicConfig) ->
-  os:getenv("GOOGLE_CLOUD_PROJECT").
-  % case maps:get(<<"project_id">>, DynamicConfig, false) or
-  %   os:getenv("GOOGLE_CLOUD_PROJECT") or
-  %   os:getenv("GCLOUD_PROJECT") or
-  %   os:getenv("DEVSHELL_PROJECT_ID") or
-  %   maps:get(<<"project_id">>, Config, false) of
-  %   false ->
-  %     try egoth:retrieve_metadata_project() of
-  %       ProjectId -> ProjectId
-  %     catch
-  %     % TODO: catch on specific error
-  %         error -> erlang:error("Failed to retrieve project data from GCE internal metadata service.
-  %           Either you haven't configured your GCP credentials, you aren't running on GCE, or both.
-  %           Please see README.md for instructions on configuring your credentials.")
-  %     end;
-  %   ProjectId -> ProjectId
-  % end.
+determine_project_id(Config, DynamicConfig) ->
+  ConfigTuple = {
+    maps:get(<<"project_id">>, DynamicConfig, false),
+    os:getenv("GOOGLE_CLOUD_PROJECT"),
+    os:getenv("GCLOUD_PROJECT"),
+    os:getenv("DEVSHELL_PROJECT_ID"),
+    maps:get(<<"project_id">>, Config, false)
+  },
+  Config = lists:filter(fun(Elem) ->
+      % change test
+      is_map(Elem)
+    end
+    , tuple_to_list(ConfigTuple)),
+  {Config2, _} = lists:split(1, Config),
+  if Config2 == false ->
+    try egoth:retrieve_metadata_project() of
+      ProjectId -> ProjectId
+    catch
+      error -> erlang:error("Failed to retrieve project data from GCE internal metadata service.
+            Either you haven't configured your GCP credentials, you aren't running on GCE, or both.
+            Please see README.md for instructions on configuring your credentials.")
+    end;
+  true -> Config2
+  end.
 
 - spec map_config(Config) -> Return when
   Config :: map(),
@@ -117,7 +123,7 @@ config_mod_init(_Config) ->
   %   end
   {ok, #config{}}.
 
-% TODO: implement
+% will never return json atm (config is always undefined)
 - spec from_json(Config) -> Return when
   Config :: #config{},
   Return :: boolean() | map().
@@ -128,7 +134,7 @@ from_json(Config) ->
     Json -> decode_json(Json)
   end.
 
-% TODO: implement
+% will never return json atm (config is always undefined)
 from_config(Config) ->
   case Config#config.config of
     undefined -> false;
@@ -136,6 +142,10 @@ from_config(Config) ->
     Json -> decode_json(Json)
   end.
 
+%%----------------------------
+%% @doc
+%% @end
+%%----------------------------
 from_creds_file(_Config) ->
   case os:getenv("GOOGLE_APPLICATION_CREDENTIALS") of
     false -> false;

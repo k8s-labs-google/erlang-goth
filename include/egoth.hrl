@@ -1,6 +1,6 @@
 -record(config, {
     account = undefined :: string() | undefined,
-    scope   = undefined :: string() | undefined,
+    scope   = undefined :: string() | binary() | undefined,
     sub     = undefined :: string() | undefined,
 
     json   = undefined :: string() | undefined,
@@ -21,7 +21,7 @@
 -record(token, {
     token   :: string(),
     type    = undefined :: string() | undefined,
-    scope   = undefined :: string() | undefined,
+    scope   = undefined :: string() | binary() | undefined,
     sub     = undefined :: string() | undefined,
     expires :: non_neg_integer(),
     account :: string()

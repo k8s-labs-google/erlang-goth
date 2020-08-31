@@ -23,6 +23,11 @@ all() -> [
   ].
 
 init_per_suite(Config) ->
+  meck:new(hackney, [unstick]),
+  meck:expect(hackney, request, fun(_) -> {ok, 200, 0, ok} end),
+  meck:expect(hackney, get, fun(_) -> {ok, 200, 0, ok} end),
+  meck:expect(hackney, post, fun(_) -> {ok, 200, 0, ok} end),
+
   {ok, Pid} = config:start(),
   {ok, _Pid2} = token_store:start(),
   [{config_pid, Pid}|Config].

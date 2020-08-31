@@ -1,0 +1,7 @@
+version: "3"
+
+services:
+  egoth:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile
