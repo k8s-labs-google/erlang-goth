@@ -68,21 +68,43 @@ handle_cast(_, State) -> {noreply, State}.
 %%%_ * Private functions -----------------------------------------------
 
 % TODO: rewrite or statement into tuple like above...
-determine_project_id(Config, DynamicConfig) ->
+determine_project_id(_Config, _DynamicConfig) ->
   ConfigTuple = {
-    maps:get(<<"project_id">>, DynamicConfig, false),
+    % maps:get(<<"project_id">>, DynamicConfig, false),
     os:getenv("GOOGLE_CLOUD_PROJECT"),
     os:getenv("GCLOUD_PROJECT"),
-    os:getenv("DEVSHELL_PROJECT_ID"),
-    maps:get(<<"project_id">>, Config, false)
+    os:getenv("DEVSHELL_PROJECT_ID")
+    % maps:get(<<"project_id">>, Config, false)
   },
-  Config = lists:filter(fun(Elem) ->
-      % change test
-      is_map(Elem)
-    end
-    , tuple_to_list(ConfigTuple)),
-  {Config2, _} = lists:split(1, Config),
-  if Config2 == false ->
+  % io:fwrite(tuple_to_list(ConfigTuple)),
+
+  Fig = lists:filter(fun(Elem) ->
+    % change test
+    % is_map(Elem)
+    Elem
+  end
+  , tuple_to_list(ConfigTuple)),
+  io:fwrite(Fig),
+
+  Config2 = case length(tuple_to_list(ConfigTuple)) > 0 of
+    true ->
+      lists:filter(fun(Elem) ->
+        % change test, will this be true for strings?
+        % is_map(Elem)
+        Elem
+      end
+      , tuple_to_list(ConfigTuple));
+    false ->
+      {false}
+  end,
+  Config3 = case length(Config2) == 0 of
+  true ->
+    false;
+  false ->
+    {Config4, _} = lists:split(1, Config2),
+    Config4
+  end,
+  if Config3 == false ->
     try egoth:retrieve_metadata_project() of
       ProjectId -> ProjectId
     catch
@@ -90,7 +112,7 @@ determine_project_id(Config, DynamicConfig) ->
             Either you haven't configured your GCP credentials, you aren't running on GCE, or both.
             Please see README.md for instructions on configuring your credentials.")
     end;
-  true -> Config2
+  true -> Config3
   end.
 
 - spec map_config(Config) -> Return when
@@ -168,12 +190,16 @@ from_gcloud_adc(_Config) ->
   end,
   Path = filename:join([PathRoot, "gcloud", "application_default_credentials.json"]),
   % creats a map #{}, {} reads a map
-  {ok, {_, _Size, Type, _Access, _, _, _CTime, _, _, _, _, _, _, _}} = file:read_file_info(Path),
-  if Type == regular ->
-    {ok, File} = file:read_file(Path),
-    decode_json(File);
-  true ->
-    false
+  case file:read_file_info(Path) of
+    {error, _} ->
+      false;
+    {ok, {_, _Size, Type, _Access, _, _, _CTime, _, _, _, _, _, _, _}} ->
+      if Type == regular ->
+        {ok, File} = file:read_file(Path),
+        decode_json(File);
+      true ->
+        false
+      end
   end.
 
 from_metadata(_) ->
