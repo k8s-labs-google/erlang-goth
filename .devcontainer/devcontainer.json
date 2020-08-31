@@ -1,0 +1,24 @@
+{
+	"name": "Erlang OTP 22 Alpine",
+	"build": {
+		"dockerfile": "Dockerfile"
+	},
+	"runArgs": [
+		"-v", "${env:HOME}/.config/gcloud:/home/ex/.config/gcloud:ro",
+		"-v","/var/run/docker.sock:/var/run/docker.sock"
+	],
+	"postCreateCommand": "echo done",
+	"extensions": [
+		"benvp.vscode-hex-pm-intellisense",
+		"streetsidesoftware.code-spell-checker",
+		"eriklynd.json-tools",
+		"pgourlain.erlang",
+		"ms-azuretools.vscode-docker",
+		"alefragnani.bookmarks",
+		"donjayamanne.githistory",
+		"redhat.vscode-yaml",
+		"awesomektvn.scratchpad",
+		"eamodio.gitlens",
+		"humao.rest-client",
+	]
+}
