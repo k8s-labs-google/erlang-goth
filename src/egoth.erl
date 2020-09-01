@@ -107,7 +107,7 @@ get_access_token({metadata}, _Scope) ->
   ],
   Payload = <<>>,
   Options = [],
-  case hackney:get(URL, Headers, Payload, Options)
+  case hackney:request(get, URL, Headers, Payload, Options)
   of
     {ok, _, _, ClientRef} ->
       {ok, ResponseBody} = hackney:body(ClientRef),
@@ -123,7 +123,7 @@ retrieve_metadata_project() ->
       <<"Metadata-Flavor">>, <<"Google">>
   }],
   Options = [],
-  {ok, _, _, ClientRef} = hackney:get(URL, Headers, Options),
+  {ok, _, _, ClientRef} = hackney:request(get, URL, Headers, <<>>, Options),
   {ok, ResponseBody} = hackney:body(ClientRef),
   ResponseBody.
 

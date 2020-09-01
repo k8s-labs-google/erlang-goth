@@ -22,9 +22,37 @@ all() -> [
     get_access_token_metadata
   ].
 
+state_fun(_) ->
+  ok.
+
 % https://github.com/heroku/esputnik/blob/master/test/esputnik_first_SUITE.erl
 init_per_suite(Config) ->
   {ok, _MeckApps} = application:ensure_all_started(meck),
+  meck:new(hackney, [unstick, passthrough]),
+  meck:expect(hackney, request,
+              fun(get, "http://metadata.google.internal/computeMetadata/v1/project/project-id", [{
+                <<"Metadata-Flavor">>, <<"Google">>
+              }], <<>>, []) ->
+                      {ok, 200, ["project-id"], connection1};
+                (get, "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default", [{
+                  <<"Metadata-Flavor">>, <<"Google">>
+                }], <<>>, []) ->
+                        {ok, 200, ["token"], connection2}
+              end),
+  % meck:expect(hackney, request,
+  %   fun(get, "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default", [{
+  %     <<"Metadata-Flavor">>, <<"Google">>
+  %   }], <<>>, []) ->
+  %           {ok, 200, ["token"], connection1}
+  %   end),
+  meck:expect(hackney_manager, get_state,
+    fun(_, _) ->
+      {ok, "foo", "foo", "project-id"}
+    end),
+  meck:expect(hackney, body,
+    fun(_) ->
+      {ok, "project-id"}
+    end),
   % meck:new(hackney, [unstick]),
   % meck:expect(hackney, request, fun(_) -> {ok, 200, 0, ok} end),
   % meck:expect(hackney, get, fun(_) -> {ok, 200, 0, ok} end),
@@ -42,23 +70,25 @@ end_per_suite(Config) ->
   ok.
 
 init_per_testcase(TestCase, Config) ->
-  meck:new(hackney, [unstick, passthrough]),
-  meck:expect(hackney, request,
-              fun(get, <<"http://metadata.google.internal/computeMetadata/v1/project/project-id">>, [], {}, _) ->
-                      {ok, 200, ["foobar"], connection1}
-              end),
-  meck:expect(hackney, send_request,
-              fun(connection2, _) ->
-                      {error, closed}
-              end),
-  meck:expect(hackney, body,
-              fun(connection1) ->
-                      {ok, <<"{\"request_id\":\"random\"}">>}
-              end),
-  meck:expect(hackney, close,
-              fun(active_client) ->
-                      ok
-              end),
+  % meck:new(hackney, [unstick, passthrough]),
+  % meck:expect(hackney, request,
+  %             fun(get, "http://metadata.google.internal/computeMetadata/v1/project/project-id", [{
+  %               <<"Metadata-Flavor">>, <<"Google">>
+  %             }], <<>>, []) ->
+  %                     {ok, 200, ["foobar"], connection1}
+  %             end),
+  % meck:expect(hackney, send_request,
+  %             fun(connection2, _) ->
+  %                     {error, closed}
+  %             end),
+  % meck:expect(hackney, body,
+  %             fun(connection1) ->
+  %                     {ok, <<"{\"request_id\":\"random\"}">>}
+  %             end),
+  % meck:expect(hackney, close,
+  %             fun(active_client) ->
+  %                     ok
+  %             end),
   ?MODULE:TestCase({init, Config}).
 
 end_per_testcase(TestCase, Config) ->
