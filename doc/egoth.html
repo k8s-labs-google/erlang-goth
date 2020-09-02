@@ -10,13 +10,17 @@
 <hr>
 
 <h1>Module egoth</h1>
-<ul class="index"><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>
+<ul class="index"><li><a href="#description">Description</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>Google Auth in erlang.
 
+<p><b>Authors:</b> Will Beebe.</p>
 
+<h2><a name="description">Description</a></h2><p>Google Auth in erlang.</p>
+  
+   Essentially a port of the Elixir package goth
 <h2><a name="index">Function Index</a></h2>
 <table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#for_scope-1">for_scope/1</a></td><td></td></tr>
 <tr><td valign="top"><a href="#get_access_token-1">get_access_token/1</a></td><td></td></tr>
-<tr><td valign="top"><a href="#get_access_token-2">get_access_token/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#get_access_token-2">get_access_token/2</a></td><td>pass in an atom for oauth_jwt, oauth_refresh, or metata.</td></tr>
 <tr><td valign="top"><a href="#retrieve_metadata_project-0">retrieve_metadata_project/0</a></td><td></td></tr>
 </table>
 
@@ -24,18 +28,23 @@
 
 <h3 class="function"><a name="for_scope-1">for_scope/1</a></h3>
 <div class="spec">
-<p><tt>for_scope(Scope) -&gt; any()</tt></p>
+<p><tt>for_scope(Scope) -&gt; Return</tt>
+<ul class="definitions"><li><tt>Scope = binary()</tt></li><li><tt>Return = {ok, #token{}}</tt></li></ul></p>
 </div>
 
 <h3 class="function"><a name="get_access_token-1">get_access_token/1</a></h3>
 <div class="spec">
-<p><tt>get_access_token(Scope) -&gt; any()</tt></p>
+<p><tt>get_access_token(Scope) -&gt; Return</tt>
+<ul class="definitions"><li><tt>Scope = #config{}</tt></li><li><tt>Return = {ok, #token{}} | {error, term()}</tt></li></ul></p>
 </div>
 
 <h3 class="function"><a name="get_access_token-2">get_access_token/2</a></h3>
 <div class="spec">
-<p><tt>get_access_token(X1, Scope) -&gt; any()</tt></p>
-</div>
+<p><tt>get_access_token(X1::{atom()}, Scope) -&gt; Return</tt>
+<ul class="definitions"><li><tt>Scope = #config{}</tt></li><li><tt>Return = {ok, #token{}} | {error, term()}</tt></li></ul></p>
+</div><p>pass in an atom for oauth_jwt, oauth_refresh, or metata.
+ </p>
+<p><b>See also:</b> <a href="#get_access_token-2">get_access_token/2</a>.</p>
 
 <h3 class="function"><a name="retrieve_metadata_project-0">retrieve_metadata_project/0</a></h3>
 <div class="spec">

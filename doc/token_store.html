@@ -29,12 +29,14 @@
 
 <h3 class="function"><a name="clear-0">clear/0</a></h3>
 <div class="spec">
-<p><tt>clear() -&gt; any()</tt></p>
+<p><tt>clear() -&gt; Value</tt>
+<ul class="definitions"><li><tt>Value = ok</tt></li></ul></p>
 </div>
 
 <h3 class="function"><a name="find-2">find/2</a></h3>
 <div class="spec">
-<p><tt>find(X1, Sub) -&gt; any()</tt></p>
+<p><tt>find(Config::#config{}, Sub::term()) -&gt; Return</tt>
+<ul class="definitions"><li><tt>Return = {ok, #token{}} | {error, term()}</tt></li></ul></p>
 </div>
 
 <h3 class="function"><a name="handle_call-3">handle_call/3</a></h3>
@@ -44,12 +46,12 @@
 
 <h3 class="function"><a name="handle_cast-2">handle_cast/2</a></h3>
 <div class="spec">
-<p><tt>handle_cast(X1, State) -&gt; any()</tt></p>
+<p><tt>handle_cast(X1::{atom()}, State::term()) -&gt; {noreply, term()}</tt><br></p>
 </div>
 
 <h3 class="function"><a name="init-1">init/1</a></h3>
 <div class="spec">
-<p><tt>init(State) -&gt; any()</tt></p>
+<p><tt>init(State::tuple()) -&gt; {ok, term()}</tt><br></p>
 </div>
 
 <h3 class="function"><a name="start-0">start/0</a></h3>
@@ -64,7 +66,8 @@
 
 <h3 class="function"><a name="store-3">store/3</a></h3>
 <div class="spec">
-<p><tt>store(Map, Map, Map) -&gt; {}</tt><br></p>
+<p><tt>store(Config::#config{}, Sub::term(), Token::#token{}) -&gt; Return</tt>
+<ul class="definitions"><li><tt>Return = ok | {error, term()}</tt></li></ul></p>
 </div>
 <hr>
 

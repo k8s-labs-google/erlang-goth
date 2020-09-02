@@ -1,21 +1,21 @@
+%%%-----------------------------------------------------------------------------
+%%%
+%%% @doc Google Auth in erlang.
+%%%
+%%% Essentially a port of the Elixir package goth
+%%% @author Will Beebe
+%%% @end
+%%%-----------------------------------------------------------------------------
 -module(egoth).
 
-% new API
 -export([for_scope/1]).
-
 -export([get_access_token/1]).
 -export([get_access_token/2]).
-
 -export ([retrieve_metadata_project/0]).
 
-% -define(OAUTH_URL, <<"https://www.googleapis.com/oauth2/v4/token">>).
 -define(OAUTH_URL, <<"https://www.googleapis.com/oauth2/v4/token">>).
 -define(OAUTH_REFRESH_URL(ClientId),
   lists:concat(["https://www.googleapis.com/oauth2/v4/token?client_id=", ClientId, ",access_type=offline,nonc=foobar,response_type=code,"])).
-
-% -define(CLOUD_TRACE_URL(Project, TraceId, SpanId),
-%   lists:concat(["https://cloudtrace.googleapis.com/v2/projects/", Project, "/traces/", TraceId, "/spans/", SpanId])).
-
 
 -include("egoth.hrl").
 
@@ -23,7 +23,6 @@
 
 % is there a way for this method to live in token.erl but still be consumable in
 % downstream modules?
-
 - spec for_scope(Scope) -> Return when
   Scope :: binary(),
   Return :: {ok, #token{}}.
@@ -34,10 +33,16 @@ for_scope(Scope) ->
   Scope  :: #config{},
   Return :: {ok, #token{}}  | {'error', _}.
 get_access_token(#config{}=Scope) ->
-  Config = config:get(token_source),
+  Config = config:get(),
   {_, TokenSource} = Config#config.token_source,
   get_access_token({TokenSource}, Scope).
 
+%%------------------------------------------------------------------------------
+%% @doc pass in an atom for oauth_jwt, oauth_refresh, or metata.
+%%
+%% @see get_access_token/2
+%% @end
+%%------------------------------------------------------------------------------
 - spec get_access_token({atom()}, Scope) -> Return when
   Scope  :: #config{},
   Return :: {ok, #token{}}  | {'error', _}.
@@ -64,7 +69,7 @@ get_access_token({oauth_jwt}, #config{}=Scope) ->
   end,
   Return;
 get_access_token({oauth_refresh}, #config{}= _Scope) ->
-  Config = config:get(refresh_token),
+  Config = config:get(),
   {_, RefreshToken} = Config#config.refresh_token,
   {_, ClientId} = Config#config.client_id,
   {_, ClientSecret} = Config#config.client_secret,
@@ -92,6 +97,7 @@ get_access_token({oauth_refresh}, #config{}= _Scope) ->
   end,
   Return;
 get_access_token({metadata}, _Scope) ->
+  io:fwrite("get_access_token metata"),
   % TODO: account needs to be specificed in URL
   URL = "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default",
   Headers = [
@@ -101,11 +107,11 @@ get_access_token({metadata}, _Scope) ->
   ],
   Payload = <<>>,
   Options = [],
-  % https://github.com/benoitc/hackney
-  case hackney:get(URL, Headers, Payload, Options)
+  case hackney:request(get, URL, Headers, Payload, Options)
   of
     {ok, _, _, ClientRef} ->
-      {token = Token} = jiffy:decode(hackney:body(ClientRef), [ return_maps ]),
+      {ok, ResponseBody} = hackney:body(ClientRef),
+      {token = Token} = jiffy:decode(ResponseBody, [ return_maps ]),
       {ok, Token};
     {error, Reason} ->
       {error, Reason}
@@ -117,8 +123,9 @@ retrieve_metadata_project() ->
       <<"Metadata-Flavor">>, <<"Google">>
   }],
   Options = [],
-  {ok, _, _, ClientRef} = hackney:get(URL, Headers, Options),
-  hackney:body(ClientRef).
+  {ok, _, _, ClientRef} = hackney:request(get, URL, Headers, <<>>, Options),
+  {ok, ResponseBody} = hackney:body(ClientRef),
+  ResponseBody.
 
 
 %%% INTERNAL ===================================================================
@@ -127,7 +134,7 @@ retrieve_metadata_project() ->
   Scope :: #config{},
   Return :: map().
 claims(Scope) ->
-  Config = config:get(client_email),
+  Config = config:get(),
   {_, Value} = Config#config.client_email,
   {MegaSecs, Secs, _} = erlang:timestamp(),
   UnixTime = MegaSecs * 1000000 + Secs,
@@ -144,7 +151,7 @@ claims(Scope) ->
   Return :: binary().
 jwt(Scope) ->
   Claims = claims(Scope),
-  Config = config:get(private_key),
+  Config = config:get(),
   {_, PrivateKey} = Config#config.private_key,
   {ok, Token} = jwt:encode(<<"RS256">>, Claims, PrivateKey),
   Token.
@@ -155,9 +162,3 @@ jwt(Scope) ->
 -include_lib("eunit/include/eunit.hrl").
 
 -endif.
-
-%%%_* Emacs ============================================================
-%%% Local Variables:
-%%% allout-layout: t
-%%% erlang-indent-level: 2
-%%% End:

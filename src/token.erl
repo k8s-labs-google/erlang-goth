@@ -16,22 +16,22 @@ for_scope(Scope) ->
 
 - spec for_scope(Scope, Sub) -> Value when
   %          scope    | {account,           scope}
-  Scope   :: binary() | {string() | atom(), binary()},
+  Scope   :: binary() | {string() | binary(), binary()},
   Sub   :: string() | undefined,
   Value :: {ok, #token{}} | {error, _}.
 for_scope(Scope, Sub) when is_binary(Scope) ->
   Token = token_store:find(#config{account = "default", scope = Scope}, Sub),
   case token_store:find(#config{account = "default", scope = Scope}, Sub)
   of
-    error ->
+    {error, _} ->
       retrieve_and_store(#config{account = "default", scope = Scope}, Sub);
-    Token ->
+    {ok, Token} ->
       {ok, Token}
   end;
-for_scope({account = Account, scope = Scope}, Sub) ->
+for_scope({Account, Scope}, Sub) ->
   case token_store:find(#config{account = Account, scope = Scope}, Sub)
   of
-    {reply, Token, _} ->
+    {ok, Token} ->
       {ok, Token};
     {error, _} ->
       retrieve_and_store(#config{account = Account, scope = Scope}, Sub)

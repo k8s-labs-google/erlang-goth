@@ -14,26 +14,42 @@
 
 
 <h2><a name="index">Function Index</a></h2>
-<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#for_scope-2">for_scope/2</a></td><td></td></tr>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#for_scope-1">for_scope/1</a></td><td></td></tr>
+<tr><td valign="top"><a href="#for_scope-2">for_scope/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#from_response_json-2">from_response_json/2</a></td><td></td></tr>
 <tr><td valign="top"><a href="#queue_for_refresh-1">queue_for_refresh/1</a></td><td></td></tr>
 <tr><td valign="top"><a href="#refresh-1">refresh/1</a></td><td></td></tr>
 </table>
 
 <h2><a name="functions">Function Details</a></h2>
 
+<h3 class="function"><a name="for_scope-1">for_scope/1</a></h3>
+<div class="spec">
+<p><tt>for_scope(Scope) -&gt; Return</tt>
+<ul class="definitions"><li><tt>Scope = binary()</tt></li><li><tt>Return = {ok, #token{}} | {error, term()}</tt></li></ul></p>
+</div>
+
 <h3 class="function"><a name="for_scope-2">for_scope/2</a></h3>
 <div class="spec">
-<p><tt>for_scope(Map, Map) -&gt; {atom(), Map}</tt><br></p>
+<p><tt>for_scope(Scope, Sub) -&gt; Value</tt>
+<ul class="definitions"><li><tt>Scope = binary() | {string() | atom(), binary()}</tt></li><li><tt>Sub = string() | undefined</tt></li><li><tt>Value = {ok, #token{}} | {error, term()}</tt></li></ul></p>
+</div>
+
+<h3 class="function"><a name="from_response_json-2">from_response_json/2</a></h3>
+<div class="spec">
+<p><tt>from_response_json(Config, ResponseBody) -&gt; any()</tt></p>
 </div>
 
 <h3 class="function"><a name="queue_for_refresh-1">queue_for_refresh/1</a></h3>
 <div class="spec">
-<p><tt>queue_for_refresh(Token) -&gt; any()</tt></p>
+<p><tt>queue_for_refresh(Token) -&gt; Value</tt>
+<ul class="definitions"><li><tt>Token = #token{}</tt></li><li><tt>Value = pid() | term()</tt></li></ul></p>
 </div>
 
 <h3 class="function"><a name="refresh-1">refresh/1</a></h3>
 <div class="spec">
-<p><tt>refresh(Map) -&gt; {atom(), Map}</tt><br></p>
+<p><tt>refresh(Config::#config{}) -&gt; Return</tt>
+<ul class="definitions"><li><tt>Return = #token{} | {error, term()}</tt></li></ul></p>
 </div>
 <hr>
 

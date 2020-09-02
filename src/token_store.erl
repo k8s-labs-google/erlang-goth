@@ -32,8 +32,14 @@ find(#config{account = Account, scope = Scope}, Sub) ->
   Message = #config{account = Account, scope = Scope, sub = Sub},
   gen_server:call(?SERVER, {find, Message}).
 
--spec clear() -> Value when
-  Value :: ok.
+
+%%------------------------------------------------------------------------------
+%% @doc resets the token store to empty, clearing all existing keys.
+%%
+%% @end
+%%------------------------------------------------------------------------------
+-spec clear() -> Return when
+  Return :: ok.
 clear() ->
   gen_server:cast(?SERVER, {clear, {}}).
 
@@ -64,6 +70,7 @@ handle_call({store, #config{account = Account} = _Config, #token{} = Token}, _Fr
   % NewState = maps:put(Account, Token, State),
 
   % TODO: map all record values to this map
+  % a bit awkward with a record vs a map as state
   NewState2 = #{
     token => Token#token.token
   },
